@@ -70,11 +70,12 @@ def client(api_app: FastAPI) -> Iterator[TestClient]:
     from riskreveal.core.rate_limit import limiter
     from riskreveal.db.session import get_engine
 
+    # CASCADE: assets/scans/findings now reference users, so a plain TRUNCATE fails.
     # Safety net: this fixture TRUNCATEs. Refuse to run against anything but the
     # throwaway container database.
     assert get_engine().url.database == "riskreveal_test"
     limiter.reset()
     with get_engine().begin() as conn:
-        conn.execute(text("TRUNCATE TABLE users"))
+        conn.execute(text("TRUNCATE TABLE users CASCADE"))
     with TestClient(api_app) as test_client:
         yield test_client

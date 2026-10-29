@@ -1,4 +1,4 @@
-"""TODO: backend/src/riskreveal/domain/findings/__init__.py
+"""Findings domain: what a scan found, and its lifecycle.
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
+Does not import ``models`` here (see ``domain/assets/__init__.py``).
 """

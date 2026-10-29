@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<!-- Synthetic sample shaped like Nmap 7.9x `-oX -` output. NOT a real scan. -->
+<nmaprun scanner="nmap" args="nmap -oX - --no-stylesheet -n --open -sV 45.33.32.156" start="1790000000" version="7.97" xmloutputversion="1.05">
+<host starttime="1790000001" endtime="1790000020">
+<status state="up" reason="user-set" reason_ttl="0"/>
+<address addr="45.33.32.156" addrtype="ipv4"/>
+<hostnames>
+<hostname name="scanme.nmap.org" type="user"/>
+</hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack" reason_ttl="52"/><service name="ssh" product="OpenSSH" version="6.6.1p1 Ubuntu 2ubuntu2.13" extrainfo="Ubuntu Linux; protocol 2.0" ostype="Linux" method="probed" conf="10"><cpe>cpe:/a:openbsd:openssh:6.6.1p1</cpe><cpe>cpe:/o:linux:linux_kernel</cpe></service></port>
+<port protocol="tcp" portid="80"><state state="open" reason="syn-ack" reason_ttl="52"/><service name="http" product="Apache httpd" version="2.4.7" extrainfo="(Ubuntu)" method="probed" conf="10"><cpe>cpe:/a:apache:http_server:2.4.7</cpe></service><script id="http-title" output="Go ahead and ScanMe!"/></port>
+<port protocol="tcp" portid="9929"><state state="open" reason="syn-ack" reason_ttl="52"/><service name="nping-echo" product="Nping echo" method="probed" conf="10"/></port>
+<port protocol="tcp" portid="8080"><state state="filtered" reason="no-response" reason_ttl="0"/><service name="http-proxy" method="table" conf="3"/></port>
+<port protocol="tcp" portid="23"><state state="closed" reason="reset" reason_ttl="52"/><service name="telnet" method="table" conf="3"/></port>
+<port protocol="tcp" portid="bogus"><state state="open" reason="syn-ack" reason_ttl="52"/></port>
+</ports>
+<os><osmatch name="Linux 3.2 - 4.9" accuracy="96" line="1"/><osmatch name="Linux 3.10 - 4.11" accuracy="94" line="2"/></os>
+<hostscript><script id="clock-skew" output="mean: 1s, deviation: 0s, median: 1s"/></hostscript>
+<times srtt="52000" rttvar="3000" to="100000"/>
+</host>
+<host starttime="1790000001" endtime="1790000002">
+<status state="down" reason="no-response" reason_ttl="0"/>
+<address addr="45.33.32.157" addrtype="ipv4"/>
+<ports><port protocol="tcp" portid="22"><state state="open" reason="syn-ack" reason_ttl="52"/><service name="ssh" method="table" conf="3"/></port></ports>
+</host>
+<host>
+<status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="00:11:22:33:44:55" addrtype="mac"/>
+</host>
+<host>
+<status state="up" reason="user-set" reason_ttl="0"/>
+<address addr="2606:4700:4700::1111" addrtype="ipv6"/>
+<address addr="00:11:22:33:44:66" addrtype="mac" vendor="Example"/>
+<ports>
+<port protocol="tcp" portid="443"><state state="open" reason="syn-ack" reason_ttl="55"/><service name="http" tunnel="ssl" method="probed" conf="8"/></port>
+</ports>
+</host>
+<runstats><finished time="1790000025" timestr="Thu Oct 29 12:00:25 2026" elapsed="25.00" summary="Nmap done: 3 IP addresses (2 hosts up) scanned in 25.00 seconds" exit="success"/><hosts up="2" down="1" total="3"/></runstats>
+</nmaprun>

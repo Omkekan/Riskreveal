@@ -13,6 +13,9 @@ from sqlalchemy import create_engine, pool
 
 # Import every model module here so its tables register on Base.metadata.
 # A model that is never imported is invisible to autogenerate.
+import riskreveal.domain.assets.models
+import riskreveal.domain.findings.models
+import riskreveal.domain.scanning.models
 import riskreveal.domain.users.models  # noqa: F401
 from riskreveal.config import get_settings
 from riskreveal.db.base import Base

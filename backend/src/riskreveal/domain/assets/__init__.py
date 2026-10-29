@@ -1,4 +1,6 @@
-"""TODO: backend/src/riskreveal/domain/assets/__init__.py
+"""Assets domain: the machines RiskReveal knows about.
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
+Deliberately does not import ``models`` here, so light modules in this
+package stay importable without SQLAlchemy. Import models explicitly:
+``from riskreveal.domain.assets.models import Asset``.
 """

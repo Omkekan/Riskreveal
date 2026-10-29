@@ -108,3 +108,8 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--cov=riskreveal --cov-report=term-missing:skip-covered"
+
+[dependency-groups]
+dev = [
+    "types-defusedxml>=0.7.0.20260504",
+]
