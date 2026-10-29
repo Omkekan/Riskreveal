@@ -14,8 +14,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
+from riskreveal.api.v1.router import api_router
 from riskreveal.config import get_settings
+from riskreveal.core.rate_limit import limiter
 from riskreveal.db.session import check_database_connection, get_engine
 
 logger = logging.getLogger("riskreveal")
@@ -76,6 +79,9 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
 
+    # slowapi looks the limiter up on app.state when a @limiter.limit route runs.
+    app.state.limiter = limiter
+
     _register_exception_handlers(app)
     _register_routes(app)
 
@@ -101,6 +107,14 @@ def _register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={"error": "validation_error", "detail": exc.errors()},
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        # Deliberately generic: don't echo the configured limit to the client.
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"error": "rate_limited", "detail": "Too many requests. Try again later."},
         )
 
     @app.exception_handler(Exception)
@@ -144,9 +158,7 @@ def _register_routes(app: FastAPI) -> None:
             content=payload,
         )
 
-    # api/v1/router.py is still a stub (see the rebuild structure plan) —
-    # it gets included here once the first real routes exist, rather than
-    # wiring in an empty placeholder router now.
+    app.include_router(api_router, prefix=get_settings().api_v1_prefix)
 
 
 app = create_app()

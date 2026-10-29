@@ -11,12 +11,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from riskreveal.config import get_settings
-from riskreveal.db.base import Base
-
 # Import every model module here so its tables register on Base.metadata.
 # A model that is never imported is invisible to autogenerate.
 import riskreveal.domain.users.models  # noqa: F401
+from riskreveal.config import get_settings
+from riskreveal.db.base import Base
 
 config = context.config
 if config.config_file_name is not None:
