@@ -1,52 +1,117 @@
-   [project]
-   name = "riskreveal-backend"
-   version = "0.1.0"
-   description = "RiskReveal vulnerability scanner backend"
-   requires-python = ">=3.12"
-   dependencies = [
-    "alembic>=1.20.1",
-    "anthropic>=2.3.0",
-    "argon2-cffi>=25.1.0",
-    "celery>=5.6.3",
-    "cpe>=1.3.1",
-    "cryptography>=50.0.2",
-    "defusedxml>=0.7.1",
-    "fastapi>=0.162.0",
-    "httpx>=0.28.1",
-    "matplotlib>=3.11.2",
-    "networkx>=3.7",
-    "opentelemetry-instrumentation-fastapi>=0.66b1",
-    "opentelemetry-sdk>=1.45.1",
-    "packaging>=26.3",
-    "paramiko>=5.1.0",
-    "psycopg[binary,pool]>=3.3.6",
-    "pydantic>=2.14.1",
-    "pydantic-settings>=2.16.2",
-    "pyjwt>=2.15.1",
-    "python-docx>=1.2.0",
-    "python-multipart>=0.0.32",
-    "pywinrm>=0.5.0",
-    "redis>=8.1.0",
-    "sentry-sdk>=2.73.0",
-    "slowapi>=0.1.10",
+[project]
+name = "riskreveal-backend"
+version = "0.1.0"
+description = "RiskReveal vulnerability scanning and management backend"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "RiskReveal" }]
+
+dependencies = [
+    # --- Core web framework ---
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.12",
+
+    # --- Database ---
     "sqlalchemy>=2.0",
-    "structlog>=26.1.0",
-    "tenacity>=9.2.1",
-    "typer>=0.27.3",
-    "univers>=32.0.1",
-    "uvicorn[standard]>=0.54.0",
-    "weasyprint>=70.0",
+    "alembic>=1.13",
+    "psycopg[binary,pool]>=3.2",
+    "redis>=5.1",
+
+    # --- Task queue ---
+    "celery>=5.4",
+
+    # --- Security & auth ---
+    "pyjwt>=2.9",
+    "argon2-cffi>=23.1",
+    "cryptography>=43.0",
+    "slowapi>=0.1.9",
+
+    # --- Scanning engines, parsing, collectors ---
+    "defusedxml>=0.7.1",
+    "httpx>=0.27",
+    "paramiko>=3.5",
+    "pywinrm>=0.4.3",
+
+    # --- Intelligence & version matching ---
+    "packaging>=24.1",
+    "univers>=30.11.0",
+    "cpe>=1.3.1",
+
+    # --- Risk scoring & chain analysis ---
+    "networkx>=3.4",
+
+    # --- AI agents ---
+    "anthropic>=0.39",
+    "tenacity>=9.0",
+
+    # --- Reports ---
+    "weasyprint>=63.0",
+    "python-docx>=1.1.2",
+    "matplotlib>=3.9",
+
+    # --- Observability ---
+    "structlog>=24.4",
+    "sentry-sdk[fastapi]>=2.17",
+    "opentelemetry-sdk>=1.28",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+
+    # --- CLI ---
+    "typer>=0.13",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
-    "hypothesis>=6.170.13",
-    "mypy>=2.4.0",
-    "pre-commit>=4.7.0",
-    "pytest>=9.2.0",
-    "pytest-asyncio>=1.4.1",
-    "pytest-cov>=7.1.0",
-    "ruff>=0.17.3",
-    "testcontainers>=4.15.0",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.115",
+    "testcontainers[postgres,redis]>=4.8",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
 ]
-# TODO: backend/pyproject.toml
+
+# NOTE: no [project.scripts] entry yet. backend/src/riskreveal/cli/commands.py
+# is still a stub (per the skeleton script) — adding a console-script entry
+# point that points at code which doesn't exist yet is exactly the kind of
+# "looks fine until someone runs it" bug this project is trying to get away
+# from. It gets added back in the batch that actually implements the CLI.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/riskreveal"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/F: pyflakes+pycodestyle basics, I: import sorting, UP: pyupgrade,
+# B: bugbear (catches real bugs, e.g. mutable default args),
+# S: bandit-style security lint (hardcoded secrets, subprocess shell=True, etc.),
+# C4: comprehension cleanups, SIM: simplification, RUF: Ruff-specific checks.
+select = ["E", "F", "I", "UP", "B", "S", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files legitimately use assert and sometimes hardcode dummy
+# credentials for fixtures — don't flag those as bandit-style findings.
+"tests/**" = ["S101", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov=riskreveal --cov-report=term-missing"
