@@ -1,4 +1,5 @@
-"""TODO: backend/src/riskreveal/domain/users/__init__.py
+"""User domain: accounts and authentication identity."""
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
-"""
+from riskreveal.domain.users.models import User
+
+__all__ = ["User"]
