@@ -1,4 +1,5 @@
-"""TODO: backend/src/riskreveal/cli/__init__.py
+"""Lets ``python -m riskreveal.cli`` start the command-line tools."""
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
-"""
+from riskreveal.cli.commands import app
+
+app(prog_name="riskreveal")

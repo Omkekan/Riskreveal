@@ -55,6 +55,7 @@ def api_app(database_url: str) -> Iterator[FastAPI]:
     # Register every table on Base.metadata (an unimported model is never created).
     import riskreveal.domain.assets.models
     import riskreveal.domain.findings.models
+    import riskreveal.domain.intelligence.models
     import riskreveal.domain.scanning.models
     import riskreveal.domain.users.models  # noqa: F401
     from riskreveal.config import get_settings

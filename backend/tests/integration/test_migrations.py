@@ -21,6 +21,15 @@ import pytest
 from sqlalchemy import create_engine, inspect
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+_EXPECTED_TABLES = {
+    "users",
+    "assets",
+    "scans",
+    "findings",
+    "kev_entries",
+    "epss_scores",
+    "feed_syncs",
+}
 
 
 @pytest.fixture(scope="module")
@@ -57,14 +66,14 @@ def _tables(url: str) -> set[str]:
 def test_upgrade_check_downgrade_upgrade(migration_db_url: str) -> None:
     up = _alembic(migration_db_url, "upgrade", "head")
     assert up.returncode == 0, up.stderr
-    assert {"users", "assets", "scans", "findings"} <= _tables(migration_db_url)
+    assert _tables(migration_db_url) >= _EXPECTED_TABLES
 
     check = _alembic(migration_db_url, "check")
     assert check.returncode == 0, check.stdout + check.stderr
 
     down = _alembic(migration_db_url, "downgrade", "base")
     assert down.returncode == 0, down.stderr
-    assert not ({"users", "assets", "scans", "findings"} & _tables(migration_db_url))
+    assert not (_EXPECTED_TABLES & _tables(migration_db_url))
 
     again = _alembic(migration_db_url, "upgrade", "head")
     assert again.returncode == 0, again.stderr
