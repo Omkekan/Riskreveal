@@ -11,7 +11,7 @@
 #   docker compose ps           # check health
 #   docker compose down         # stop (keeps data)
 #   docker compose down -v      # stop AND wipe the data volumes
-
+name: riskreveal-v2
 services:
   postgres:
     image: postgres:17-alpine
@@ -23,7 +23,7 @@ services:
     ports:
       # Bound to loopback only — not reachable from other devices on your
       # network, even though the port is "published".
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - riskreveal_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - riskreveal_redisdata:/data
     healthcheck:

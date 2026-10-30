@@ -1,4 +1,4 @@
-"""TODO: backend/src/riskreveal/domain/scanning/__init__.py
+"""Scanning domain: scan jobs, scope policy, scan profiles.
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
+Does not import ``models`` here (see ``domain/assets/__init__.py``).
 """

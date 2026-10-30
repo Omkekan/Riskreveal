@@ -1,4 +1,27 @@
-"""TODO: backend/src/riskreveal/domain/assets/schemas.py
+"""Response schemas for assets."""
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
-"""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
+
+class AssetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    address: str
+    hostname: str | None
+    os_name: str | None
+    last_scanned_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetPage(BaseModel):
+    items: list[AssetRead]
+    total: int
+    limit: int
+    offset: int
