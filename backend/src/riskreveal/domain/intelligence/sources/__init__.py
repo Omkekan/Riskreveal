@@ -1,4 +1,5 @@
-"""TODO: backend/src/riskreveal/domain/intelligence/sources/__init__.py
+"""Threat-intelligence feed sources (parsers and downloaders).
 
-See 05_Rebuild_Structure_and_File_Plan.md for what belongs here.
+Each source module is split so the risky part is small and testable: a pure
+parser (no network, no database) and, separately, ``fetch.py`` for downloads.
 """
