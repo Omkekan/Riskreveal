@@ -32,6 +32,12 @@ os.environ["JWT_SECRET_KEY"] = secrets.token_urlsafe(48)
 os.environ["FERNET_KEY"] = Fernet.generate_key().decode()
 os.environ["AUTH_RATE_LIMIT"] = "1000/minute"
 os.environ["CORS_ORIGINS"] = "http://localhost:3000"
+# Pin the scan policy so a developer's backend/.env can't change test outcomes.
+os.environ["SCAN_PRIVATE_RANGES_ALLOWED"] = "false"
+os.environ["SCAN_PUBLIC_ALLOWLIST"] = ""
+os.environ["SCAN_RATE_LIMIT"] = "1000/minute"
+os.environ["SCAN_MAX_ACTIVE_PER_USER"] = "3"
+os.environ["NMAP_PATH"] = ""
 
 
 @pytest.fixture(scope="session")
@@ -46,7 +52,11 @@ def database_url() -> Iterator[str]:
 
 @pytest.fixture(scope="session")
 def api_app(database_url: str) -> Iterator[FastAPI]:
-    import riskreveal.domain.users.models  # noqa: F401  (registers User on Base.metadata)
+    # Register every table on Base.metadata (an unimported model is never created).
+    import riskreveal.domain.assets.models
+    import riskreveal.domain.findings.models
+    import riskreveal.domain.scanning.models
+    import riskreveal.domain.users.models  # noqa: F401
     from riskreveal.config import get_settings
     from riskreveal.db.base import Base
     from riskreveal.db.session import get_engine, get_sessionmaker
@@ -76,6 +86,6 @@ def client(api_app: FastAPI) -> Iterator[TestClient]:
     assert get_engine().url.database == "riskreveal_test"
     limiter.reset()
     with get_engine().begin() as conn:
-        conn.execute(text("TRUNCATE TABLE users CASCADE"))
+        conn.execute(text("TRUNCATE TABLE users CASCADE"))  # cascades to scans/assets/findings
     with TestClient(api_app) as test_client:
         yield test_client

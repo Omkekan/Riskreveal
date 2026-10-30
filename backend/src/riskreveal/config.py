@@ -33,6 +33,8 @@ from cryptography.fernet import Fernet
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from riskreveal.domain.scanning.authorization import parse_allowlist
+
 
 class Environment(StrEnum):
     """Deployment environment. Drives the production-safety checks below."""
@@ -109,6 +111,14 @@ class Settings(BaseSettings):
     # Defaults closed; the scope-policy module (domain/scanning/scope_policy.py)
     # is what actually enforces this per-scan, this is just the global switch.
     scan_private_ranges_allowed: bool = False
+    # Public targets are refused unless listed here (comma separated: exact
+    # hostnames, single IPs, or CIDR ranges no wider than /16). Empty = no
+    # public scanning at all. See domain/scanning/authorization.py.
+    scan_public_allowlist: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    scan_rate_limit: str = "10/minute"
+    scan_max_active_per_user: int = Field(default=3, ge=1, le=20)
+    # Optional explicit path to the Nmap executable; default is PATH lookup.
+    nmap_path: str | None = None
 
     # --- AI agents -----------------------------------------------------------
     # Optional until the agent pipeline (Phase 5) is implemented — but
@@ -165,7 +175,7 @@ class Settings(BaseSettings):
             ) from exc
         return v
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "scan_public_allowlist", mode="before")
     @classmethod
     def _split_cors_origins(cls, v: object) -> object:
         # Environment variables arrive as strings; allow a comma-separated
@@ -174,6 +184,23 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
+
+    @field_validator("scan_public_allowlist")
+    @classmethod
+    def _validate_scan_allowlist(cls, v: list[str]) -> list[str]:
+        try:
+            parse_allowlist(v)
+        except ValueError as exc:
+            raise ValueError(f"SCAN_PUBLIC_ALLOWLIST is invalid: {exc}") from exc
+        return [entry.strip() for entry in v if entry.strip()]
+
+    @field_validator("nmap_path")
+    @classmethod
+    def _blank_nmap_path_to_none(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:

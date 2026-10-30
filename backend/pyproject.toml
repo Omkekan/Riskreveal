@@ -95,7 +95,7 @@ select = ["E", "F", "I", "UP", "B", "S", "C4", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # Test files legitimately use assert and sometimes hardcode dummy
 # credentials for fixtures — don't flag those as bandit-style findings.
-"tests/**" = ["S101", "S105", "S106"] 
+"tests/**" = ["S101", "S105", "S106", "S603"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -103,8 +103,21 @@ strict = true
 plugins = ["pydantic.mypy"]
 exclude = ["tests/"]
 
+[[tool.mypy.overrides]]
+# Celery and kombu ship no type information.
+module = ["celery", "celery.*", "kombu", "kombu.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Celery's task decorators are untyped by nature.
+module = ["riskreveal.tasks.*"]
+disallow_untyped_decorators = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live_nmap: runs the real Nmap binary against a throwaway local listener (skipped if Nmap is missing)",
+]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--cov=riskreveal --cov-report=term-missing:skip-covered"

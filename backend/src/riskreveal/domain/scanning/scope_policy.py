@@ -47,6 +47,16 @@ Resolver = Callable[[str], Sequence[str]]
 
 _LABEL_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
+# IPv6 transition ranges that embed an IPv4 address. Python calls some of them
+# "global", but a gateway can translate them to an IPv4 address (possibly a
+# private one) that this policy never got to judge. Never scanned.
+_TRANSITION_NETWORKS = (
+    ipaddress.IPv6Network("64:ff9b::/96"),  # NAT64
+    ipaddress.IPv6Network("64:ff9b:1::/48"),  # local-use NAT64
+    ipaddress.IPv6Network("2002::/16"),  # 6to4
+    ipaddress.IPv6Network("2001::/32"),  # Teredo
+)
+
 
 class ScopeError(ValueError):
     """The target is not allowed. The message is safe to show to the user."""
@@ -136,6 +146,13 @@ def _unwrap(ip: IPAddress) -> IPAddress:
 
 def _check_address(ip: IPAddress, *, allow_private: bool) -> None:
     ip = _unwrap(ip)
+    if isinstance(ip, ipaddress.IPv6Address) and any(
+        ip in network for network in _TRANSITION_NETWORKS
+    ):
+        raise ScopeError(
+            "This address is in a range that can never be scanned "
+            "(unspecified, multicast, link-local or reserved)."
+        )
     # Never allowed, regardless of configuration.
     if ip.is_unspecified or ip.is_multicast or ip.is_link_local:
         raise ScopeError(

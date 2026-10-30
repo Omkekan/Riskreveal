@@ -31,3 +31,7 @@ limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
 
 def auth_limit() -> str:
     return get_settings().auth_rate_limit
+
+
+def scan_limit() -> str:
+    return get_settings().scan_rate_limit

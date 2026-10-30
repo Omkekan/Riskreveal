@@ -104,9 +104,15 @@ def _register_exception_handlers(app: FastAPI) -> None:
     async def _validation_error_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        # exc.errors() can hold exception objects (ctx), which JSON cannot encode,
+        # and the submitted values (input, e.g. a password). Return neither.
+        detail = [
+            {"type": err.get("type"), "loc": list(err.get("loc", ())), "msg": err.get("msg")}
+            for err in exc.errors()
+        ]
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            content={"error": "validation_error", "detail": exc.errors()},
+            content={"error": "validation_error", "detail": detail},
         )
 
     @app.exception_handler(RateLimitExceeded)
