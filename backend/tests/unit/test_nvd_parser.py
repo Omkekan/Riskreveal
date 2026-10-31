@@ -16,7 +16,7 @@ import pytest
 
 from riskreveal.domain.findings.enums import Severity
 from riskreveal.domain.intelligence.errors import FeedParseError
-from riskreveal.domain.intelligence.records import severity_from_cvss
+from riskreveal.domain.intelligence.records import CveRecord, severity_from_cvss
 from riskreveal.domain.intelligence.sources.nvd import parse_nvd_response
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "nvd_sample.json"
@@ -25,10 +25,6 @@ _CPE_OK = "cpe:2.3:a:v:p:1:*:*:*:*:*:*:*"
 
 def _fixture() -> object:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
-
-
-def _by_id() -> dict[str, object]:
-    return {r.cve_id: r for r in parse_nvd_response(_fixture()).records}
 
 
 def test_page_counts_and_skips() -> None:
@@ -217,3 +213,105 @@ def test_severity_from_cvss(score: float, expected: Severity) -> None:
 def test_severity_from_cvss_rejects_out_of_range(bad: float) -> None:
     with pytest.raises(ValueError, match="between 0 and 10"):
         severity_from_cvss(bad)
+
+
+# --- platform requirements ("this only applies on Windows") ---------------------
+
+
+def _one_cve(configurations: list[object]) -> CveRecord:
+    page = parse_nvd_response(
+        {"vulnerabilities": [{"cve": {"id": "CVE-2099-0800", "configurations": configurations}}]}
+    )
+    return page.records[0]
+
+
+def _vulnerable(criteria: str) -> dict[str, object]:
+    return {"vulnerable": True, "criteria": criteria}
+
+
+def _platform(criteria: str) -> dict[str, object]:
+    return {"vulnerable": False, "criteria": criteria}
+
+
+_APP = "cpe:2.3:a:v:p:*:*:*:*:*:*:*:*"
+
+
+def test_fixture_platform_requirements() -> None:
+    records = {r.cve_id: r for r in parse_nvd_response(_fixture()).records}
+    assert records["CVE-2099-0004"].ranges[0].requires == ("examplecorp:examplelinux",)
+    assert records["CVE-2099-0001"].ranges[0].requires == ()
+    assert records["CVE-2099-0002"].ranges[0].requires == ()
+
+
+def test_platforms_are_collected_sorted_and_deduplicated() -> None:
+    # Eight platforms listed in reverse order, plus duplicates and a garbage entry. With
+    # this many, an unsorted result would almost never match the sorted one by luck.
+    platforms = [_platform(f"cpe:2.3:o:vendor{i}:os:-:*:*:*:*:*:*:*") for i in range(8, 0, -1)]
+    platforms += [_platform("cpe:2.3:o:vendor3:os:1809:*:*:*:*:*:*:*"), _platform("garbage")]
+    record = _one_cve(
+        [
+            {
+                "operator": "AND",
+                "nodes": [{"cpeMatch": [_vulnerable(_APP)]}, {"cpeMatch": platforms}],
+            }
+        ]
+    )
+    (rng,) = record.ranges
+    assert rng.conditional is True
+    assert rng.requires == tuple(f"vendor{i}:os" for i in range(1, 9))
+
+
+def test_platform_entries_in_a_plain_configuration_are_not_requirements() -> None:
+    record = _one_cve(
+        [
+            {
+                "nodes": [
+                    {
+                        "operator": "OR",
+                        "cpeMatch": [
+                            _vulnerable(_APP),
+                            _platform("cpe:2.3:o:microsoft:windows:-:*:*:*:*:*:*:*"),
+                        ],
+                    }
+                ]
+            }
+        ]
+    )
+    (rng,) = record.ranges
+    assert rng.conditional is False
+    assert rng.requires == ()
+
+
+def test_an_and_of_two_vulnerable_products_is_conditional_with_no_known_platform() -> None:
+    record = _one_cve(
+        [
+            {
+                "operator": "AND",
+                "nodes": [
+                    {"cpeMatch": [_vulnerable(_APP)]},
+                    {"cpeMatch": [_vulnerable("cpe:2.3:a:other:plugin:*:*:*:*:*:*:*:*")]},
+                ],
+            }
+        ]
+    )
+    assert len(record.ranges) == 2
+    assert all(r.conditional and r.requires == () for r in record.ranges)
+
+
+def test_platforms_of_a_negated_node_are_ignored() -> None:
+    record = _one_cve(
+        [
+            {
+                "operator": "AND",
+                "nodes": [
+                    {"cpeMatch": [_vulnerable(_APP)]},
+                    {
+                        "negate": True,
+                        "cpeMatch": [_platform("cpe:2.3:o:microsoft:windows:-:*:*:*:*:*:*:*")],
+                    },
+                ],
+            }
+        ]
+    )
+    (rng,) = record.ranges
+    assert rng.requires == ()

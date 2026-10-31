@@ -12,6 +12,37 @@ back-ported the fix (see ``distro.py``), and the vulnerable feature may be
 switched off. Callers must record such findings with
 ``confidence="inferred"``, never "confirmed".
 
+Some matches are weaker still, and say so through ``CveMatch.needs_review``:
+
+* ``all_versions``: the NVD lists the product with no version limit. Real data
+  shows this is typical of disputed or unfixable entries.
+* ``conditional``: the NVD says the bug needs an additional platform. Real data
+  shows these are often platform-specific (for example Windows-only Apache
+  bugs, or a Red Hat-only package compromise), which do not apply to a Linux
+  host. ``requires`` says which platform.
+
+Callers should not turn ``needs_review`` matches into ordinary findings
+automatically.
+
+How versions with an "update" suffix are compared
+-------------------------------------------------
+NVD splits some versions in two: OpenSSH 8.2p1 is *version* ``8.2`` plus
+*update* ``p1``, while Nmap reports ``8.2p1``. The NVD's own matching rule is
+that an applicability entry whose update is the wildcard ``*`` covers **every**
+update of that version, and its version bounds are compared against the
+*version* part only. So for a host reporting ``8.2p1``:
+
+* an entry for exactly ``8.2`` (update ``*``) matches (real case:
+  CVE-2020-12062, which the first version of this matcher missed);
+* ``versionEndIncluding 8.2`` includes it, ``versionStartExcluding 8.2`` does
+  not, ``versionEndExcluding 8.2`` does not;
+* but a bound that itself carries the suffix (``8.2p1``) is compared with the
+  full ``8.2p1``, so ``versionEndExcluding 8.2p1`` excludes it and
+  ``versionEndIncluding 8.2p1`` includes ``8.2p1`` but not ``8.2p2``.
+
+Only the portable-release suffix ``p<number>`` is split off. Other letter
+suffixes (OpenSSL's ``1.0.2k``) are ordinary version text and unchanged.
+
 When the answer is "don't know" the matcher says nothing rather than guess:
 no version, an unparseable version, or an unparseable range bound produce no
 match.
@@ -23,6 +54,7 @@ found. Run ``scripts/nvd_match_demo.py`` against real data to find such cases.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
@@ -31,9 +63,23 @@ from riskreveal.domain.intelligence.cpe import Cpe, full_version, join_version
 from riskreveal.domain.intelligence.records import CpeRange, CveRecord
 from riskreveal.domain.intelligence.versions import ParsedVersion, compare_versions, parse_version
 
+_WILDCARD = ("", "*")
+_NO_VALUE = (*_WILDCARD, "-")
+_UPDATE_SUFFIX = re.compile(r"([0-9]+(?:\.[0-9]+)*)(p[0-9]+)")
+
 MatchReason = Literal["exact_version", "version_range", "all_versions"]
 
 _REASON_ORDER: dict[MatchReason, int] = {"exact_version": 0, "version_range": 1, "all_versions": 2}
+
+
+@dataclass(frozen=True)
+class _Subject:
+    """The version of the detected software, in the two forms the NVD uses."""
+
+    full: ParsedVersion
+    """Version and update together (``8.2p1``)."""
+    base: ParsedVersion
+    """The version part alone (``8.2``); equal to ``full`` if there is no update."""
 
 
 @dataclass(frozen=True)
@@ -43,6 +89,13 @@ class CveMatch:
     conditional: bool
     """NVD says this applies only together with another component (for
     example a particular operating system). Treat as less certain."""
+    requires: tuple[str, ...] = ()
+    """``vendor:product`` of the platform(s) a conditional match needs."""
+
+    @property
+    def needs_review(self) -> bool:
+        """True for matches too weak to report automatically (see module docs)."""
+        return self.conditional or self.reason == "all_versions"
 
 
 def match_cves(cpe: Cpe, records: Iterable[CveRecord]) -> list[CveMatch]:
@@ -52,7 +105,7 @@ def match_cves(cpe: Cpe, records: Iterable[CveRecord]) -> list[CveMatch]:
     """
     if cpe.part not in ("a", "o"):
         return []
-    subject = parse_version(full_version(cpe))
+    subject = _subject_for(cpe)
     if subject is None:
         return []
 
@@ -63,7 +116,7 @@ def match_cves(cpe: Cpe, records: Iterable[CveRecord]) -> list[CveMatch]:
             reason = _range_reason(rng, cpe, subject)
             if reason is None:
                 continue
-            candidate = CveMatch(record.cve_id, reason, rng.conditional)
+            candidate = CveMatch(record.cve_id, reason, rng.conditional, rng.requires)
             if best is None or _rank(candidate) < _rank(best):
                 best = candidate
         if best is not None:
@@ -71,6 +124,19 @@ def match_cves(cpe: Cpe, records: Iterable[CveRecord]) -> list[CveMatch]:
 
     matches.sort(key=_cve_sort_key)
     return matches
+
+
+def _subject_for(cpe: Cpe) -> _Subject | None:
+    full = parse_version(full_version(cpe))
+    if full is None:
+        return None
+    if cpe.update not in _NO_VALUE:
+        base_text: str | None = cpe.version  # NVD form: version 8.2, update p1
+    else:
+        split = _UPDATE_SUFFIX.fullmatch(cpe.version)  # Nmap form: version 8.2p1
+        base_text = split.group(1) if split else None
+    base = parse_version(base_text) if base_text is not None else None
+    return _Subject(full=full, base=base if base is not None else full)
 
 
 def _rank(match: CveMatch) -> tuple[int, bool]:
@@ -82,7 +148,7 @@ def _cve_sort_key(match: CveMatch) -> tuple[int, int]:
     return (int(year), int(number))
 
 
-def _range_reason(rng: CpeRange, cpe: Cpe, subject: ParsedVersion) -> MatchReason | None:
+def _range_reason(rng: CpeRange, cpe: Cpe, subject: _Subject) -> MatchReason | None:
     if rng.part != cpe.part or rng.vendor != cpe.vendor or rng.product != cpe.product:
         return None
 
@@ -96,12 +162,17 @@ def _range_reason(rng: CpeRange, cpe: Cpe, subject: ParsedVersion) -> MatchReaso
         return None
 
     exact = parse_version(join_version(rng.version, rng.update))
-    if exact is not None and compare_versions(subject, exact) == 0:
+    if exact is not None and compare_versions(subject.full, exact) == 0:
         return "exact_version"
+    if rng.update in _WILDCARD:
+        # A wildcard update covers every update of that version (8.2 covers 8.2p1).
+        version_only = parse_version(rng.version)
+        if version_only is not None and compare_versions(subject.base, version_only) == 0:
+            return "exact_version"
     return None
 
 
-def _within_bounds(rng: CpeRange, subject: ParsedVersion) -> bool:
+def _within_bounds(rng: CpeRange, subject: _Subject) -> bool:
     checks: tuple[tuple[str | None, int, bool], ...] = (
         # (bound text, required comparison of subject vs bound, allow equal)
         (rng.start_including, 1, True),
@@ -115,7 +186,10 @@ def _within_bounds(rng: CpeRange, subject: ParsedVersion) -> bool:
         bound = parse_version(text)
         if bound is None:
             return False  # can't evaluate this bound: no claim
-        order = compare_versions(subject, bound)
+        # A bound that names an update (8.2p1) is compared with the full version;
+        # a plain bound (8.2) with the version part only, as the NVD does.
+        carries_update = _UPDATE_SUFFIX.fullmatch(text.strip().lower()) is not None
+        order = compare_versions(subject.full if carries_update else subject.base, bound)
         if order == 0:
             if not allow_equal:
                 return False

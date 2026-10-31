@@ -18,6 +18,7 @@ from datetime import datetime
 
 from riskreveal.domain.findings.enums import Severity
 
+
 @dataclass(frozen=True)
 class CpeRange:
     """One "vulnerable" CPE applicability entry of a CVE (NVD ``cpeMatch``).
@@ -38,7 +39,11 @@ class CpeRange:
     end_excluding: str | None = None
     conditional: bool = False
     """True if NVD says this only applies in combination with another
-    component (an AND configuration, e.g. "when running on Linux")."""
+    component (an AND configuration, e.g. "when running on Windows")."""
+    requires: tuple[str, ...] = ()
+    """For a conditional entry: the ``vendor:product`` of the platform
+    components it must run on (for example ``microsoft:windows``), taken from
+    the non-vulnerable entries of the same configuration. Empty if unknown."""
 
 
 @dataclass(frozen=True)
