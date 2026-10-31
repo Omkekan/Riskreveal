@@ -34,13 +34,18 @@ from __future__ import annotations
 import ipaddress
 import re
 import socket
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 DEFAULT_MAX_HOSTS = 256
 MAX_TARGET_LENGTH = 255
 MAX_RESOLVED_ADDRESSES = 16
+# How long to wait for a hostname lookup. The OS resolver can take far longer
+# (about 11 s on one network), and the caller may hold a database transaction
+# open while it waits.
+DNS_TIMEOUT_SECONDS = 5.0
 
 IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 Resolver = Callable[[str], Sequence[str]]
@@ -80,13 +85,34 @@ class ValidatedTarget:
     ipv6: bool
 
 
-def system_resolver(hostname: str) -> list[str]:
-    """Resolve a hostname to a sorted, de-duplicated list of IP strings."""
-    try:
-        infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-    except (socket.gaierror, UnicodeError) as exc:
-        raise ScopeError("The hostname could not be resolved.") from exc
-    return sorted({str(info[4][0]) for info in infos})
+def system_resolver(hostname: str, *, timeout: float = DNS_TIMEOUT_SECONDS) -> list[str]:
+    """Resolve a hostname to a sorted, de-duplicated list of IP strings.
+
+    ``socket.getaddrinfo`` cannot be interrupted, so the lookup runs in a
+    daemon thread and we simply stop *waiting* after ``timeout`` seconds. An
+    abandoned lookup finishes (or fails) on its own and its result is
+    discarded; being a daemon thread, it never keeps the process alive.
+    Every failure, whatever its type, becomes a :class:`ScopeError` with a
+    fixed message, so resolver internals never reach the user.
+    """
+    outcome: list[Any] = []  # one item: the lookup result, or the exception it raised
+
+    def lookup() -> None:
+        try:
+            outcome.append(socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM))
+        except Exception as exc:
+            outcome.append(exc)
+
+    worker = threading.Thread(target=lookup, name="dns-lookup", daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if worker.is_alive() or not outcome:
+        raise ScopeError("The hostname lookup timed out.")
+
+    result = outcome[0]
+    if isinstance(result, Exception):
+        raise ScopeError("The hostname could not be resolved.") from result
+    return sorted({str(info[4][0]) for info in result})
 
 
 def validate_target(
