@@ -1,0 +1,158 @@
+{
+  "resultsPerPage": 6,
+  "startIndex": 0,
+  "totalResults": 6,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2099-01-03T00:00:00.000",
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2099-0001",
+        "sourceIdentifier": "test@example.invalid",
+        "published": "2099-01-01T10:00:00.000",
+        "lastModified": "2099-01-02T10:30:00.000",
+        "vulnStatus": "Analyzed",
+        "descriptions": [
+          {"lang": "es", "value": "Descripcion sintetica."},
+          {"lang": "en", "value": "Synthetic flaw in ExampleSSH before 7.2."}
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "cvssData": {
+                "version": "3.1",
+                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                "baseScore": 9.8,
+                "baseSeverity": "CRITICAL"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:examplecorp:examplessh:*:*:*:*:*:*:*:*",
+                    "versionEndExcluding": "7.2",
+                    "matchCriteriaId": "00000000-0000-0000-0000-000000000001"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2099-0002",
+        "published": "2099-01-01T11:00:00.000",
+        "lastModified": "2099-01-01T11:00:00.000",
+        "vulnStatus": "Analyzed",
+        "descriptions": [{"lang": "en", "value": "Synthetic flaw in one exact ExampleSSH release."}],
+        "metrics": {
+          "cvssMetricV30": [
+            {
+              "type": "Primary",
+              "cvssData": {
+                "version": "3.0",
+                "vectorString": "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+                "baseScore": 4.8,
+                "baseSeverity": "MEDIUM"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:examplecorp:examplessh:6.6.1:p1:*:*:*:*:*:*",
+                    "matchCriteriaId": "00000000-0000-0000-0000-000000000002"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2099-0003",
+        "vulnStatus": "Rejected",
+        "descriptions": [{"lang": "en", "value": "** REJECT ** Synthetic rejected entry."}],
+        "configurations": []
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2099-0004",
+        "published": "2099-01-02T09:00:00.000Z",
+        "lastModified": "2099-01-02T09:00:00.000Z",
+        "vulnStatus": "Analyzed",
+        "descriptions": [{"lang": "en", "value": "Synthetic flaw in ExampleHTTPd 2.4.0 up to 2.4.49 on ExampleLinux."}],
+        "metrics": {
+          "cvssMetricV2": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "cvssData": {
+                "version": "2.0",
+                "vectorString": "AV:N/AC:L/Au:N/C:P/I:N/A:N",
+                "baseScore": 5.0
+              },
+              "baseSeverity": "MEDIUM"
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "operator": "AND",
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:examplecorp:examplehttpd:*:*:*:*:*:*:*:*",
+                    "versionStartIncluding": "2.4.0",
+                    "versionEndExcluding": "2.4.50",
+                    "matchCriteriaId": "00000000-0000-0000-0000-000000000004"
+                  }
+                ]
+              },
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": false,
+                    "criteria": "cpe:2.3:o:examplecorp:examplelinux:-:*:*:*:*:*:*:*",
+                    "matchCriteriaId": "00000000-0000-0000-0000-000000000099"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {"cve": {"id": "not-a-cve", "descriptions": []}},
+    "junk"
+  ]
+}
