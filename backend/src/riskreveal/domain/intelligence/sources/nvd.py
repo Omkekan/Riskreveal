@@ -10,10 +10,13 @@ Decisions worth knowing:
 
 * **Rejected CVEs are skipped** (``vulnStatus == "Rejected"`` or a
   ``** REJECT **`` description).
-* **Only "vulnerable" CPE entries are kept.** In an NVD configuration the
+* **Only "vulnerable" CPE entries become ranges.** In an NVD configuration the
   entries marked ``vulnerable: false`` describe the platform the software runs
   on, not something that is affected. A configuration joined with AND is
-  flagged ``conditional``: the CVE needs that extra platform too.
+  flagged ``conditional`` (the CVE needs that extra platform too), and the
+  platform entries of that configuration are recorded as ``requires``
+  (``vendor:product`` strings) so callers can tell, for example, a
+  Windows-only Apache bug from one that affects Linux.
 * **CVSS preference:** v4.0, then v3.1, v3.0, v2; within a version the
   "Primary" (NVD) score is preferred.
 * A CVE with no CVSS yet (not analyzed) has ``cvss_score = None``.
@@ -35,6 +38,7 @@ from riskreveal.domain.intelligence.records import CpeRange, CveRecord
 from riskreveal.domain.intelligence.sources.textutil import clean_text
 
 MAX_RANGES_PER_CVE = 20_000
+MAX_REQUIRES_PER_RANGE = 50
 MAX_DESCRIPTION_CHARS = 20_000
 MAX_BOUND_LENGTH = 64
 
@@ -122,13 +126,16 @@ def _collect_ranges(cve: dict[str, Any]) -> tuple[CpeRange, ...]:
         if config_dict is None:
             continue
         config_is_and = _is_and(config_dict.get("operator"))
-        for node in _as_list(config_dict.get("nodes")):
-            node_dict = _as_dict(node)
-            if node_dict is None or node_dict.get("negate") is True:
-                continue  # a negated node can't be read as "affected"
-            conditional = config_is_and or _is_and(node_dict.get("operator"))
-            for match in _as_list(node_dict.get("cpeMatch")):
-                rng = _parse_cpe_match(match, conditional)
+        nodes = [
+            node
+            for node in (_as_dict(item) for item in _as_list(config_dict.get("nodes")))
+            if node is not None and node.get("negate") is not True  # negated: not "affected"
+        ]
+        requires = _platform_requirements(nodes)
+        for node in nodes:
+            conditional = config_is_and or _is_and(node.get("operator"))
+            for match in _as_list(node.get("cpeMatch")):
+                rng = _parse_cpe_match(match, conditional, requires if conditional else ())
                 if rng is None:
                     continue
                 ranges.append(rng)
@@ -137,7 +144,24 @@ def _collect_ranges(cve: dict[str, Any]) -> tuple[CpeRange, ...]:
     return tuple(ranges)
 
 
-def _parse_cpe_match(match: object, conditional: bool) -> CpeRange | None:
+def _platform_requirements(nodes: list[dict[str, Any]]) -> tuple[str, ...]:
+    """``vendor:product`` of the non-vulnerable (platform) entries of a configuration."""
+    found: set[str] = set()
+    for node in nodes:
+        for match in _as_list(node.get("cpeMatch")):
+            data = _as_dict(match)
+            if data is None or data.get("vulnerable") is not False:
+                continue
+            criteria = data.get("criteria")
+            cpe = parse_cpe(criteria if isinstance(criteria, str) else None)
+            if cpe is not None:
+                found.add(f"{cpe.vendor}:{cpe.product}")
+    return tuple(sorted(found))[:MAX_REQUIRES_PER_RANGE]
+
+
+def _parse_cpe_match(
+    match: object, conditional: bool, requires: tuple[str, ...] = ()
+) -> CpeRange | None:
     data = _as_dict(match)
     if data is None or data.get("vulnerable") is not True:
         return None
@@ -156,6 +180,7 @@ def _parse_cpe_match(match: object, conditional: bool) -> CpeRange | None:
         end_including=_bound(data.get("versionEndIncluding")),
         end_excluding=_bound(data.get("versionEndExcluding")),
         conditional=conditional,
+        requires=requires,
     )
 
 

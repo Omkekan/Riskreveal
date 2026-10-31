@@ -12,6 +12,18 @@ back-ported the fix (see ``distro.py``), and the vulnerable feature may be
 switched off. Callers must record such findings with
 ``confidence="inferred"``, never "confirmed".
 
+Some matches are weaker still, and say so through ``CveMatch.needs_review``:
+
+* ``all_versions``: the NVD lists the product with no version limit. Real data
+  shows this is typical of disputed or unfixable entries.
+* ``conditional``: the NVD says the bug needs an additional platform. Real data
+  shows these are often platform-specific (for example Windows-only Apache
+  bugs, or a Red Hat-only package compromise), which do not apply to a Linux
+  host. ``requires`` says which platform.
+
+Callers should not turn ``needs_review`` matches into ordinary findings
+automatically.
+
 When the answer is "don't know" the matcher says nothing rather than guess:
 no version, an unparseable version, or an unparseable range bound produce no
 match.
@@ -43,6 +55,13 @@ class CveMatch:
     conditional: bool
     """NVD says this applies only together with another component (for
     example a particular operating system). Treat as less certain."""
+    requires: tuple[str, ...] = ()
+    """``vendor:product`` of the platform(s) a conditional match needs."""
+
+    @property
+    def needs_review(self) -> bool:
+        """True for matches too weak to report automatically (see module docs)."""
+        return self.conditional or self.reason == "all_versions"
 
 
 def match_cves(cpe: Cpe, records: Iterable[CveRecord]) -> list[CveMatch]:
@@ -63,7 +82,7 @@ def match_cves(cpe: Cpe, records: Iterable[CveRecord]) -> list[CveMatch]:
             reason = _range_reason(rng, cpe, subject)
             if reason is None:
                 continue
-            candidate = CveMatch(record.cve_id, reason, rng.conditional)
+            candidate = CveMatch(record.cve_id, reason, rng.conditional, rng.requires)
             if best is None or _rank(candidate) < _rank(best):
                 best = candidate
         if best is not None:

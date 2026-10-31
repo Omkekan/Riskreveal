@@ -160,3 +160,43 @@ def test_each_kind_of_version_bound(bounds: dict[str, str], version: str, affect
     record = CveRecord("CVE-2099-0400", "", None, None, None, None, None, None,
                        (CpeRange("a", "v", "p", **bounds),))
     assert bool(match_cves(Cpe("a", "v", "p", version, "*"), [record])) is affected
+
+
+# --- needs_review: matches too weak to report automatically ----------------------
+
+
+def _record_with(*ranges: CpeRange) -> CveRecord:
+    return CveRecord("CVE-2099-0900", "", None, None, None, None, None, None, ranges)
+
+
+@pytest.mark.parametrize(
+    ("rng", "needs_review"),
+    [
+        (CpeRange("a", "v", "p", version="1.0"), False),  # exact
+        (CpeRange("a", "v", "p", end_excluding="2.0"), False),  # range
+        (CpeRange("a", "v", "p", version="*"), True),  # every version: often disputed
+        (CpeRange("a", "v", "p", version="1.0", conditional=True), True),  # platform-specific
+        (CpeRange("a", "v", "p", end_excluding="2.0", conditional=True), True),
+    ],
+)
+def test_needs_review(rng: CpeRange, needs_review: bool) -> None:
+    (match,) = match_cves(Cpe("a", "v", "p", "1.0", "*"), [_record_with(rng)])
+    assert match.needs_review is needs_review
+
+
+def test_a_conditional_match_carries_its_platform_requirements() -> None:
+    rng = CpeRange(
+        "a", "v", "p", end_excluding="2.0", conditional=True, requires=("microsoft:windows",)
+    )
+    (match,) = match_cves(Cpe("a", "v", "p", "1.0", "*"), [_record_with(rng)])
+    assert match.conditional is True
+    assert match.requires == ("microsoft:windows",)
+
+
+def test_an_unconditional_range_wins_over_a_conditional_one_of_the_same_strength() -> None:
+    conditional = CpeRange(
+        "a", "v", "p", version="1.0", conditional=True, requires=("microsoft:windows",)
+    )
+    plain = CpeRange("a", "v", "p", version="1.0")
+    (match,) = match_cves(Cpe("a", "v", "p", "1.0", "*"), [_record_with(conditional, plain)])
+    assert (match.conditional, match.requires, match.needs_review) == (False, (), False)
