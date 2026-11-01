@@ -1,85 +1,85 @@
-# Security Policy
+# Security Policy & Responsible Use
 
-## Two different things live under "security" here
+---
 
-RiskReveal is a security *tool* (a vulnerability scanner), which makes this
-file do double duty. Be clear about which one applies:
+## 1. Strict Prohibition of Unauthorized Use & Liability Disclaimer
 
-- **A vulnerability *in* RiskReveal itself** — a bug in this codebase that
-  could let someone bypass auth, escalate privileges, inject arguments into
-  a scan, read another user's data, or similar. **This is what this policy
-  covers.**
-- **Misuse of RiskReveal's scanning functionality against a third party** —
-  that's an authorization and abuse matter, not a RiskReveal vulnerability.
-  RiskReveal enforces a scope policy (target validation, private-range
-  blocking by default) as a technical safeguard, but responsibility for
-  only scanning assets you're authorized to scan sits with the operator.
+**RiskReveal is a defensive vulnerability scanning and risk management platform. Using this software to scan, probe, test, or assess any host, network, or computer system without explicit, prior written authorization from the rightful system owner is strictly prohibited and may violate local, national, and international laws.**
 
-If you found an actual vulnerability (CVE, 0-day, exploit) in **a product
-RiskReveal scans** — that's not a RiskReveal security report either. Report
-it to that product's own vendor/security contact.
+* **Authorized Targets Only**: You are solely responsible for ensuring and documenting that you have lawful permission before initiating any scan. For safe local smoke testing, Nmap provides `scanme.nmap.org` under strict conditions (single light scans only, no automated loops or flooding).
+* **Zero Owner Liability**: As stated in [`LICENSE`](LICENSE), this software is provided `"AS IS"` without warranty of any kind. **The repository owner (`@Omkekan`) assumes zero responsibility or liability for any misuse, unauthorized scanning, network disruption, data loss, legal actions, or damages of any kind arising from the use or misuse of this software.**
+* **Technical Safeguards Are Not Legal Permission**: While RiskReveal enforces a pre-scan **Target Scope Policy** (`domain/scanning/scope_policy.py`) and an **Operator Allowlist** (`domain/scanning/authorization.py`), these technical controls exist to prevent accidental misconfiguration and Server-Side Request Forgery (SSRF)—they do not replace legal authorization.
 
-## Supported versions
+---
 
-RiskReveal is pre-1.0 and under active rebuild. There are no stable
-releases yet — only `main`. Security reports should be checked against the
-current `main` branch.
+## 2. Supported Versions
 
-| Version | Supported |
-|---|---|
-| `main` (current) | ✅ |
-| anything else | ❌ |
+RiskReveal v2 is currently in active, pre-release development. Security fixes are applied directly to the active v2 rebuild repository (`Omkekan/Riskreveal`).
 
-## Reporting a vulnerability
+| Version / Repository | Status | Security Updates |
+| :--- | :--- | :--- |
+| **RiskReveal (`main` / `dev`)** | Active Rebuild (Pre-release) | ✅ Supported |
+| **Legacy v1 Prototype (`Riskreveal-Vulnerability-scanner`)** | Deprecated / Archived | ❌ Not Supported |
 
-Please use **GitHub's private vulnerability reporting** rather than a
-public issue, so a real vulnerability isn't disclosed before it's fixed:
+---
 
-1. Go to the repository's **Security** tab → **Report a vulnerability**.
-2. If that option isn't visible, it hasn't been enabled yet on this repo —
-   enable it under **Settings → Security → Code security → Private
-   vulnerability reporting**, then use it.
+## 3. Reporting a Vulnerability in RiskReveal
 
-Include, as far as you can:
+If you discover a security vulnerability within RiskReveal's codebase, **do NOT open a public GitHub Issue, Discussion, or Pull Request.** Publicly disclosing an unpatched vulnerability puts anyone running the code at risk.
 
-- What you found and where (file/endpoint/component)
-- Steps to reproduce, or a minimal proof of concept
-- What you think the actual impact is (what an attacker gains)
-- Whether you've already disclosed it anywhere else
+### How to Report Privately
 
-Please **do not** include real credentials, a real target's data, or
-anything from an actual scan you ran against a system you don't control.
+Please report vulnerabilities privately using **GitHub Private Vulnerability Reporting**:
 
-## What's in scope
+1. Navigate to the [**Security** tab of this repository](https://github.com/Omkekan/Riskreveal/security).
+2. Click **"Report a vulnerability"** (or visit `https://github.com/Omkekan/Riskreveal/security/advisories/new`).
+3. Provide a clear, reproducible report containing:
+   * **Affected Component & File Path**: (e.g., `backend/src/riskreveal/domain/scanning/scope_policy.py`).
+   * **Vulnerability Class**: (e.g., SSRF / scope bypass, argument injection, IDOR, authentication bypass, XXE, or denial of service).
+   * **Step-by-Step Reproduction / Proof of Concept (PoC)**: Exact inputs, commands, or unit test cases demonstrating the issue.
+   * **Impact Assessment**: What an attacker could achieve and under what conditions (e.g., unauthenticated vs. authenticated user, malicious scan target vs. compromised threat feed).
 
-- The FastAPI backend (`backend/`): auth, the scan pipeline, the scope
-  policy, credential handling, the threat-intelligence and CVE-matching
-  modules, the API routes.
-- The frontend, once it exists.
-- The Docker/infra configuration (`infra/`) — for example, a service
-  exposed more broadly than intended.
+### What to Expect
 
-## What's out of scope
+* **Acknowledgment**: Reports are reviewed by the repository owner (`@Omkekan`).
+* **Remediation & Verification**: Valid vulnerabilities will be fixed with regression and mutation unit tests before being merged to `main`.
+* **Coordinated Disclosure**: Please allow time for the fix to be developed, verified, and merged before sharing any details publicly.
 
-- Missing security headers or rate limiting on routes that are explicitly
-  marked unimplemented in `docs/` or a handoff document — those are tracked
-  as regular issues, not vulnerabilities, until the feature they belong to
-  actually exists.
-- Findings that require local/physical access to a developer's own machine
-  or `.env` file.
-- Social engineering, physical attacks, or denial-of-service against
-  infrastructure that isn't RiskReveal's own (for example, flooding a
-  third-party feed source).
-- Reports generated by scanning RiskReveal's own deployment with RiskReveal
-  itself and reporting the findings as "vulnerabilities in RiskReveal" —
-  that's RiskReveal doing its job; file those as regular bug reports if the
-  detection itself is wrong (a false positive/negative), not as a security
-  report.
+---
 
-## Response expectations
+## 4. Scope for Security Reports
 
-This is presently a small/solo project, not a company with an SLA. Reports
-will be acknowledged and triaged on a best-effort basis — there's no
-guaranteed response time yet. If a report is confirmed, you'll be credited
-in `CHANGELOG.md` (name or handle, your choice) unless you'd rather stay
-anonymous.
+### High-Priority In-Scope Areas
+
+We are especially interested in reports demonstrating a verifiable bypass of RiskReveal's core security boundaries:
+
+1. **Target Scope Policy Bypasses (`domain/scanning/scope_policy.py`)**:
+   * Bypassing the blocklist for cloud metadata (`169.254.169.254`), loopback, link-local, multicast, reserved ranges, IPv4-mapped IPv6, or IPv6 transition ranges (NAT64, 6to4, Teredo) when `SCAN_PRIVATE_RANGES_ALLOWED=false`.
+   * Bypassing DNS IP pinning or the 5-second DNS lookup timeout (`system_resolver`).
+   * Leaking resolved internal IP addresses through error messages.
+2. **Public Target Allowlist Bypasses (`domain/scanning/authorization.py`)**:
+   * Scanning a public target not covered by `SCAN_PUBLIC_ALLOWLIST`.
+3. **Subprocess & Argument Injection (`engines/nmap_engine.py`, `domain/scanning/profiles.py`)**:
+   * Passing arbitrary flags or shell metacharacters into the Nmap subprocess.
+4. **Authentication, Cryptography & Tenant Isolation (`core/security.py`, `domain/users/`, `api/v1/routes/`)**:
+   * JWT signature/algorithm confusion (`alg=none`), token-type confusion (`refresh` used as `access`), or login timing oracles.
+   * Cross-user data access (IDOR) allowing one user to view, cancel, or enumerate another user's scans, findings, or assets.
+5. **Untrusted Input Parsers & Decompression Guards (`engines/nmap_engine.py`, `domain/intelligence/sources/`)**:
+   * XML External Entity (XXE) or parser crashes in `parse_nmap_xml`.
+   * Bypassing the bounded-memory gzip decompression bomb guard (`gunzip_limited` in `payload.py`) or HTTPS redirect downgrade checks (`fetch.py`).
+6. **Secret & Traceback Exposure (`main.py`, `config.py`, `cli/commands.py`)**:
+   * Leaking `JWT_SECRET_KEY`, `FERNET_KEY`, `DATABASE_URL`, or submitted user passwords in HTTP error responses, logs, or CLI tracebacks.
+
+---
+
+### Out of Scope (Already Documented Pre-Production Roadmap Items)
+
+Because RiskReveal v2 is being built in verified vertical slices, several features are intentionally deferred and already documented in [`docs/threat-model.md`](docs/threat-model.md). **Please do not submit vulnerability reports for the following known roadmap items:**
+
+* **Account Enumeration on Registration (`POST /api/v1/auth/register`)**: Returning `409 Conflict` for an existing email is a known interim behavior until email verification is implemented.
+* **Stateless Refresh Tokens**: Refresh tokens carry a `jti` claim, but database/Redis-backed token revocation and rotation are scheduled for a later slice.
+* **In-Process Memory Rate Limiting**: `slowapi` currently uses in-memory storage for single-worker development; switching to `settings.redis_url` and adding per-account lockouts is already tracked for multi-worker deployment.
+* **Operator-Wide Public Allowlist vs. Per-User Target Verification**: `SCAN_PUBLIC_ALLOWLIST` is an operator-level control; per-user cryptographic target ownership verification (DNS TXT / `.well-known`) is planned in Step E before multi-user deployment.
+* **JSON-Body Token Delivery**: Moving refresh tokens to `HttpOnly` cookies will be evaluated when the Next.js frontend is wired up.
+
+For full details on RiskReveal's trust boundaries and implemented mitigations, see [`docs/threat-model.md`](docs/threat-model.md).
