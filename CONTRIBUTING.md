@@ -1,148 +1,86 @@
 # Contributing to RiskReveal
 
-This document is written for whoever is working on RiskReveal right now —
-today, that's the project owner plus AI coding-assistant sessions continuing
-the build — and it's written to still make sense the day an outside
-contributor shows up. The rules below aren't bureaucracy; they're the exact
-discipline that's already caught several real bugs in this project (a
-config setting that silently broke environment-variable matching, a
-Starlette behavior that leaked full tracebacks in local dev, a JWT library
-edge case, a CVE-matching bug only real NVD data exposed). Skipping them
-doesn't save time — it just moves the bug discovery from "before it merged"
-to "after it shipped."
+---
 
-## Before you write any code
+## 🛑 0. Prior Owner Permission Required
 
-1. Read `docs/architecture.md` and the current state of whatever module
-   you're touching. Don't assume a file's contents from a summary or an
-   earlier conversation — open it.
-2. If you're continuing work from a handoff document, verify its claims
-   against the actual repository (`git status`, the actual file contents)
-   before building on top of them. A handoff describes what was true when
-   it was written, not necessarily what's true now.
+**RiskReveal is an actively architected security platform under strict owner control. No external contributions, pull requests, or code submissions are accepted without prior written permission from the repository owner (`@Omkekan`).**
 
-## The gates every change must pass
+* **Do NOT open unsolicited Pull Requests.** Any pull request submitted without prior explicit approval from `@Omkekan` will be closed immediately without review.
+* **How to Request Permission**:
+  1. Open a **GitHub Issue** describing the bug fix, architectural improvement, or feature slice you wish to work on.
+  2. Wait for **`@Omkekan`** to review the proposal and explicitly assign the issue or grant written approval to proceed.
+  3. All approved contributions are governed by [`CODEOWNERS`](CODEOWNERS), which requires mandatory review and sign-off from `@Omkekan` on all paths—especially security-critical modules (`core/security.py`, `domain/scanning/scope_policy.py`, `domain/scanning/authorization.py`, `config.py`, `infra/`, and `.github/`).
 
-Run these from `backend/` before you consider a change done:
+---
+
+## 1. Before You Write Any Code
+
+This section and the rules below apply to the repository owner, authorized contributors, and AI coding-assistant sessions continuing the build. These engineering gates have already caught real bugs in this codebase (a config setting that broke environment-variable matching, a Starlette debug-mode traceback leak, a JWT `alg=none` edge case, and a wildcard CPE update bug exposed by live NVD data).
+
+1. **Read the Architecture & Threat Model First**: Review [`docs/architecture.md`](docs/architecture.md), [`docs/threat-model.md`](docs/threat-model.md), and the actual files on disk before modifying any module. Never assume a file's contents from an older summary.
+2. **Verify Against Disk**: If you are continuing work from a handoff document, check `git --no-pager status --short` and inspect the actual files in the repository before building on top of them.
+
+---
+
+## 2. The Four Quality Gates Every Change Must Pass
+
+Run all four commands from `backend/` before considering any change complete:
 
 ```powershell
+Set-Location "backend"
 uv run ruff check .
 uv run mypy src
 uv run pytest tests/unit
-uv run pytest tests/integration   # needs Docker running (testcontainers)
+uv run pytest tests/integration   # requires Docker Desktop running (Testcontainers)
 ```
 
-All four must be clean. `mypy` runs in `--strict` mode — don't add
-`# type: ignore` to make a real type error disappear; fix the type, or if
-the ignore is genuinely correct, explain why in a comment next to it the
-way the existing code does.
+* All four gates **must** pass cleanly.
+* `mypy` runs in `--strict` mode. Do not slap `# type: ignore` onto a real type error to make it disappear—fix the underlying types, or if an override is genuinely required for an untyped third-party library, configure it cleanly with an explanation.
 
-If you touched anything under `domain/*/models.py`:
+### Database Migrations Gate
 
-```powershell
-uv run alembic revision --autogenerate -m "describe the change"
-```
+If you modified or added any SQLAlchemy model under `domain/*/models.py`:
 
-**Read the generated migration before applying it.** Autogenerate is a
-starting point, not an answer — check that it only contains the change you
-intended (no unrelated drift from a prior out-of-sync model), that it
-doesn't touch tables it shouldn't, and that `downgrade()` actually reverses
-`upgrade()`. Then verify the round trip for real:
+1. Ensure the model module is imported in **both** `backend/src/riskreveal/db/migrations/env.py` and `backend/tests/conftest.py`, and update `_EXPECTED_TABLES` in `backend/tests/integration/test_migrations.py`.
+2. Generate the migration:
+   ```powershell
+   uv run alembic revision --autogenerate -m "describe the schema change"
+   ```
+3. **Read the generated migration file line by line before applying it.** Verify that it contains only the intended schema changes, does not alter unrelated tables, and has a complete `downgrade()` function.
+4. Verify the full migration round-trip:
+   ```powershell
+   uv run alembic upgrade head
+   uv run alembic check
+   uv run alembic downgrade -1
+   uv run alembic upgrade head
+   ```
 
-```powershell
-uv run alembic upgrade head
-uv run alembic downgrade base
-uv run alembic upgrade head
-```
+---
 
-## "Verify, don't assume"
+## 3. "Verify, Don't Assume"
 
-This is the single most important habit in this codebase. Concretely:
+* **Exercise Real Behavior**: Reading a function and concluding it looks right is not verification. Run it against edge cases, malformed inputs, and boundary conditions.
+* **Test Parsers & Matchers Against Real Data**: Synthetic fixtures are necessary for fast unit tests, but any module that parses or matches external data (Nmap XML, CISA KEV, FIRST EPSS, NVD CVE API 2.0) must also be verified against real data (`scripts/smoke_nmap.py`, `scripts/nvd_match_demo.py`, `python -m riskreveal.cli`).
+* **Be Explicit About Verification Status**: In every PR description, commit summary, or handoff note, distinguish clearly between:
+  * **Verified**: Executed on the target machine with real output confirmed.
+  * **Sandbox-Verified**: Executed in an isolated test harness without full infrastructure.
+  * **Delivered, Not Run**: Written and compile-checked, awaiting execution.
 
-- **Test behavior, not just the code's appearance.** Reading a function and
-  concluding it's correct is not the same as running it against inputs that
-  would reveal whether it's correct. Several bugs in this project's history
-  looked completely correct on a read-through and failed the moment they
-  were actually executed.
-- **Real data finds bugs synthetic fixtures don't.** The CVE-matching core
-  passed every synthetic test before it was run against real NVD data —
-  which is exactly when it revealed a real false-negative bug (a wildcard
-  CPE update field wasn't being compared correctly). When a module parses
-  or matches against external data (NVD, KEV, EPSS, Nmap XML), test it
-  against at least one real sample before calling it done, not only against
-  hand-built fixtures.
-- **Say plainly what was and wasn't run.** When describing work (in a PR
-  description, a commit message, a handoff note), distinguish clearly
-  between "I ran this and saw it pass" and "I wrote this and expect it to
-  pass." Don't let the second one read like the first.
-- **A green test suite on a stale assumption is still wrong.** If you
-  changed a shared module, re-run the tests for everything that depends on
-  it, not just the tests for the module you touched.
+---
 
-## Git and GitHub workflow
+## 4. Code & Security Invariants (Do Not Violate)
 
-- **Branching:** trunk-based. `main` should always be in a state you'd be
-  comfortable deploying. Create a short-lived branch per change
-  (`feat/nvd-matcher-wildcard-fix`, `fix/scope-policy-ipv6-loopback`), open
-  a PR, merge, delete the branch.
-- **Even solo, use PRs.** Opening a PR against yourself isn't theater — it's
-  what triggers CI, gives you a diff view that catches things a local
-  `git status` doesn't, and creates a permanent, linkable record of *why* a
-  change was made (the PR description), which a bare commit history loses.
-- **Commit messages:** [Conventional Commits](https://www.conventionalcommits.org/)
-  (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`). This costs
-  nothing extra and makes the history scannable, and later lets tooling
-  generate changelog entries automatically if that's ever worth setting up.
-- **PR description should state:** what changed, why, which of the gates
-  above were actually run (and their result), and whether a migration was
-  generated and verified. If something wasn't run (no Docker available, no
-  real feed access), say so explicitly rather than leaving it implied.
-- **Before merging:** all four gates green, migration round-trip verified
-  if applicable, no secrets in the diff (check `.env`-shaped additions
-  especially — this project has a documented history of exactly this
-  mistake in an earlier codebase).
-- **Issues:** use them for anything that isn't an immediate, obvious fix —
-  especially findings from real-data verification (like the matcher's
-  `EXTRA`/`MISSED` precision-check output) that need triage before they
-  become a code change.
+1. **No `from __future__ import annotations` in Route Modules**: Files under `api/v1/routes/` and `core/pagination.py` must keep runtime type objects intact for FastAPI and `slowapi`.
+2. **Services Commit; `get_db` Never Auto-Commits**: Keep each logical operation in a single transaction that rolls back completely on failure.
+3. **Never Echo Secrets or Raw Tool Errors**: Keep `FastAPI(debug=False)`, keep Typer's `pretty_exceptions_show_locals=False`, never return raw `exc.errors()` in 422 handlers, and never write raw subprocess `stderr` or tracebacks into `Scan.error`.
+4. **Never Bypass the Scope Policy or Allowlist**: Only `ValidatedTarget.scan_args` produced by `validate_target()` and approved by `check_authorized()` may ever be passed to a scanner engine.
+5. **Untrusted Input Default-Closed**: Strip NUL bytes (`\x00`), clip strings to column lengths, and fail closed toward zero false alarms when version or range data cannot be parsed unambiguously.
 
-## Code style
+---
 
-- Formatting and most style rules are enforced by `ruff` (see
-  `pyproject.toml`'s `[tool.ruff]` section) — run `uv run ruff check . --fix`
-  for what's auto-fixable, but review the diff.
-- `from __future__ import annotations` is used throughout domain/model/
-  utility modules; **route modules are the deliberate exception** (FastAPI's
-  dependency injection needs real, non-deferred type objects at runtime in
-  some cases) — don't add it to files under `api/v1/routes/`.
-- Favor functions that return `None` or a typed error/result over raising
-  for "this input was bad, try the next one" conditions in parsers that
-  process many records from an external feed — one bad record shouldn't
-  abort the whole batch. Reserve exceptions for genuinely exceptional,
-  caller-must-stop conditions.
-- New modules handling untrusted input (scan output, feed data, user input)
-  should default closed: reject what's not understood rather than guess.
+## 5. Git & Pull Request Workflow
 
-## Commands reference (Windows-native)
-
-```powershell
-cd backend
-uv sync                                    # install/update dependencies
-uv run uvicorn riskreveal.main:app --reload --host 127.0.0.1 --port 8000
-uv run celery -A riskreveal.tasks.celery_app worker --pool=solo --loglevel=info
-uv run alembic upgrade head
-uv run ruff check .
-uv run mypy src
-uv run pytest tests/unit
-uv run pytest tests/integration
-```
-
-```powershell
-cd infra
-docker compose -p riskreveal-v2 up -d
-docker compose -p riskreveal-v2 ps
-docker compose -p riskreveal-v2 down        # keeps data
-```
-
-Never `docker compose down -v` without explicit confirmation — it deletes
-the local database volume.
+* **Commits**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`).
+* **Secret Check Before Staging**: Always run `git --no-pager status --short` and `git --no-pager diff` before committing to ensure `.env` files, credentials, `.venv`, or `frontend/node_modules` are never staged.
+* **Pull Requests**: Include what changed, why, which quality gates and live checks were executed, and whether any database migrations were added.
