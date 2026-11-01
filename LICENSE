@@ -1,4 +1,4 @@
-MIT License
+MIT License with Strict Authorized-Use Condition and Liability Disclaimer
 
 Copyright (c) 2026 Omkekan
 
@@ -7,15 +7,39 @@ of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
 rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+furnished to do so, subject to the following mandatory conditions:
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+1. COPYRIGHT NOTICE:
+The above copyright notice, this permission notice, the Strict Prohibition
+of Unauthorized Use (Section 2), and the Comprehensive Limitation of
+Liability and Indemnification (Section 3) shall be included in all copies or
+substantial portions of the Software.
 
+2. STRICT PROHIBITION OF UNAUTHORIZED USE:
+This Software is designed strictly for lawful, defensive security assessment,
+vulnerability management, and authorized research. Using the Software to
+scan, probe, test, access, or assess any computer system, network, host, or
+digital asset without explicit, prior written authorization from the rightful
+owner of that system is STRICTLY PROHIBITED. Any unauthorized, unlawful, or
+malicious use of the Software immediately and automatically terminates the
+permissions granted under this License. The user is solely responsible for
+verifying and documenting authorization and complying with all applicable
+local, state, national, and international laws and regulations.
+
+3. COMPREHENSIVE LIMITATION OF LIABILITY & OWNER DISCLAIMER:
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE AUTHOR, REPOSITORY OWNER (OMKEKAN), OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, LOSSES, PENALTIES, LEGAL ACTIONS,
+OR OTHER LIABILITY OF ANY KIND, WHETHER IN AN ACTION OF CONTRACT, TORT,
+STRICT LIABILITY, CRIMINAL OR CIVIL PROCEEDINGS, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE, THE USE OR MISUSE OF THE
+SOFTWARE, UNAUTHORIZED SCANNING, NETWORK DISRUPTION, DATA LOSS, FALSE
+POSITIVES, MISSED VULNERABILITIES, OR OTHER DEALINGS IN THE SOFTWARE.
+
+BY DOWNLOADING, CLONING, INSTALLING, RUNNING, OR USING THE SOFTWARE, YOU
+EXPRESSLY ACKNOWLEDGE AND AGREE THAT YOU USE THE SOFTWARE ENTIRELY AT YOUR
+OWN RISK AND THAT THE OWNER (OMKEKAN) BEARS ZERO RESPONSIBILITY FOR ANY
+ACTIONS YOU TAKE OR ANYTHING THAT HAPPENS AS A RESULT OF USING THIS SOFTWARE.
