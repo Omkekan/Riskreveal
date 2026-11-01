@@ -1,1 +1,32 @@
-# TODO: CODEOWNERS
+# CODEOWNERS
+#
+# GitHub uses this file to auto-request a review from the listed owner(s)
+# whenever a PR touches a matching path, and (if you turn on the branch
+# protection rule "Require review from Code Owners") to block merging
+# without that review.
+#
+# Syntax: a path pattern (same rules as .gitignore), then one or more
+# owners (a GitHub username or team, with an @). Later rules override
+# earlier ones for the same path, so keep the most general rule first and
+# more specific overrides below it — exactly like the layout here.
+#
+# Replace @Omkekan below with your actual GitHub username if this isn't
+# it, and add teams/other owners here as the project grows past one person.
+
+# Default: one owner for everything not matched more specifically below.
+*   @Omkekan
+
+# Anything security-sensitive gets called out explicitly, even though it
+# currently resolves to the same owner — this is what you extend first
+# once a second person joins, so auth/credential/scope-policy changes
+# always get an extra set of eyes before merging.
+/backend/src/riskreveal/core/security.py                  @Omkekan
+/backend/src/riskreveal/domain/credentials/                @Omkekan
+/backend/src/riskreveal/domain/scanning/scope_policy.py     @Omkekan
+/backend/src/riskreveal/domain/scanning/authorization.py    @Omkekan
+/backend/src/riskreveal/config.py                           @Omkekan
+
+# Infra and CI changes — also worth a deliberate second look once there's
+# a second person, since these affect what every contributor's CI run does.
+/infra/                      @Omkekan
+/.github/                    @Omkekan
