@@ -13,6 +13,7 @@ from riskreveal.core.pagination import Pagination
 from riskreveal.db.session import get_db
 from riskreveal.dependencies import CurrentUser
 from riskreveal.domain.findings import repository
+from riskreveal.domain.findings.enrichment import attach_context
 from riskreveal.domain.findings.enums import Severity
 from riskreveal.domain.findings.schemas import FindingDetail, FindingPage, FindingRead
 
@@ -40,7 +41,7 @@ def list_findings(
         offset=page.offset,
     )
     return FindingPage(
-        items=[FindingRead.model_validate(f) for f in findings],
+        items=attach_context(db, [FindingRead.model_validate(f) for f in findings]),
         total=total,
         limit=page.limit,
         offset=page.offset,
@@ -52,4 +53,4 @@ def read_finding(finding_id: uuid.UUID, current_user: CurrentUser, db: DbSession
     finding = repository.get_for_owner(db, finding_id, current_user.id)
     if finding is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found.")
-    return FindingDetail.model_validate(finding)
+    return attach_context(db, [FindingDetail.model_validate(finding)])[0]

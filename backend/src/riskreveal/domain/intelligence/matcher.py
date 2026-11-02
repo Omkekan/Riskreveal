@@ -57,6 +57,11 @@ MatchReason = Literal["exact_version", "version_range", "all_versions"]
 # are the ones that are, in practice, stored in the update field.
 _UPDATE_SUFFIX = re.compile(r"(?:p|sp|rc|beta|alpha|patch|update|pre)\d*")
 
+# A *post-release* update trailing a number: "8.2p1" -> "8.2". Pre-release words
+# (rc, beta, ...) are deliberately absent: 2.4.7rc1 is OLDER than 2.4.7, so it
+# must keep its full ordering and never be rounded up to the release.
+_POST_UPDATE = re.compile(r"(?<=\d)(?:p|sp|patch|update)\d*$")
+
 _REASON_ORDER: dict[MatchReason, int] = {"exact_version": 0, "version_range": 1, "all_versions": 2}
 
 
@@ -127,7 +132,7 @@ def _range_reason(
 
     bounds = (rng.start_including, rng.start_excluding, rng.end_including, rng.end_excluding)
     if any(bound is not None for bound in bounds):
-        return "version_range" if _within_bounds(rng, subject) else None
+        return "version_range" if _within_bounds(rng, subject, subject_text) else None
 
     if rng.version in ("*", ""):
         return "all_versions"
@@ -151,7 +156,14 @@ def _is_update_of(subject_text: str, base_version: str) -> bool:
     return _UPDATE_SUFFIX.fullmatch(subject_text[len(base_version) :]) is not None
 
 
-def _within_bounds(rng: CpeRange, subject: ParsedVersion) -> bool:
+def _within_bounds(rng: CpeRange, subject: ParsedVersion, subject_text: str) -> bool:
+    """Is ``subject`` inside the range's bounds?
+
+    A bound that names no update (``end_including 8.2``) speaks about the version
+    part only, so the subject's update is ignored: ``8.2p1`` is "up to and
+    including 8.2". A bound that names one (``8.2p1``) is compared in full.
+    """
+    base = parse_version(_POST_UPDATE.sub("", subject_text))
     checks: tuple[tuple[str | None, int, bool], ...] = (
         # (bound text, required comparison of subject vs bound, allow equal)
         (rng.start_including, 1, True),
@@ -165,7 +177,8 @@ def _within_bounds(rng: CpeRange, subject: ParsedVersion) -> bool:
         bound = parse_version(text)
         if bound is None:
             return False  # can't evaluate this bound: no claim
-        order = compare_versions(subject, bound)
+        plain = _POST_UPDATE.search(text) is None
+        order = compare_versions(base if plain and base is not None else subject, bound)
         if order == 0:
             if not allow_equal:
                 return False

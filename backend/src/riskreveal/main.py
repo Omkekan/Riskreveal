@@ -143,7 +143,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
 def _register_routes(app: FastAPI) -> None:
     @app.get("/healthz", tags=["system"])
-    async def healthz() -> JSONResponse:
+    def healthz() -> JSONResponse:
         """Liveness/readiness probe that also verifies the database.
 
         Returns 503 (not 200) when the database is unreachable, so a load

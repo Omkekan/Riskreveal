@@ -22,6 +22,7 @@ from __future__ import annotations
 from celery import Celery
 
 from riskreveal.config import get_settings
+from riskreveal.tasks.beat_schedule import BEAT_SCHEDULE
 
 
 def create_celery_app() -> Celery:
@@ -44,6 +45,7 @@ def create_celery_app() -> Celery:
         # Longer than the longest scan, so Redis does not redeliver a task
         # that is simply still running.
         broker_transport_options={"visibility_timeout": 3600},
+        beat_schedule=BEAT_SCHEDULE,
         timezone="UTC",
         enable_utc=True,
     )

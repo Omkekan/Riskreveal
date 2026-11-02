@@ -15,6 +15,11 @@ class FeedError(Exception):
 class FeedFetchError(FeedError):
     """The feed could not be obtained (network, HTTP status, size, local file)."""
 
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        """The HTTP status when the server answered with one, else ``None``."""
+
 
 class FeedParseError(FeedError):
     """The feed was obtained but is malformed, unsafe, too big or mostly invalid."""

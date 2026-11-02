@@ -74,3 +74,11 @@ def test_evidence_is_truncated() -> None:
     assert evidence is not None
     assert evidence.endswith("[truncated]")
     assert len(evidence) < 21_000
+
+
+def test_extra_info_is_carried_into_the_draft() -> None:
+    """Nmap's "(Ubuntu)" text is what tells the CVE matcher which platform the host runs."""
+    extras = {d.port: d.extra_info for d in normalize_host(_hosts()[0])}
+    assert extras[22] == "Ubuntu Linux; protocol 2.0"
+    assert extras[80] == "(Ubuntu)"
+    assert extras[9929] is None  # no extra info reported

@@ -1,4 +1,4 @@
-"""Threat-intelligence tables: CISA KEV, FIRST EPSS and feed bookkeeping.
+"""Threat-intelligence tables: CISA KEV, FIRST EPSS, NVD CVE records and bookkeeping.
 
 ``cve_id`` is plain text, not a foreign key to a CVE table: a feed may list
 CVEs we have not ingested yet, and they must still be stored (02_... §4.2).
@@ -12,7 +12,18 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -80,3 +91,78 @@ class FeedSync(Base):
 
     def __repr__(self) -> str:
         return f"FeedSync(source={self.source!r})"
+
+
+class Cve(Base, TimestampMixin):
+    """One CVE as published by the NVD (everything except its affected versions)."""
+
+    __tablename__ = "cves"
+    __table_args__ = (
+        CheckConstraint(f"cve_id ~ '{CVE_ID_SQL_REGEX}'", name="cve_id_format"),
+        CheckConstraint(
+            "cvss_score IS NULL OR (cvss_score >= 0 AND cvss_score <= 10)", name="cvss_score_range"
+        ),
+    )
+
+    cve_id: Mapped[str] = mapped_column(String(19), primary_key=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The NVD's own label, lower-case (none, low, medium, high, critical).
+    cvss_severity: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    cvss_version: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    cvss_vector: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_modified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    def __repr__(self) -> str:
+        return f"Cve(cve_id={self.cve_id!r})"
+
+
+class CveRange(Base):
+    """One "vulnerable" CPE entry of a CVE: a product and the versions it covers.
+
+    ``position`` is the entry's index within its CVE, so re-importing a CVE can
+    replace its rows deterministically. ``cpe_version``/``cpe_update`` are
+    spelled out because ``version`` and ``update`` read badly in SQL.
+    """
+
+    __tablename__ = "cve_ranges"
+    __table_args__ = (Index("ix_cve_ranges_product_key", "part", "vendor", "product"),)
+
+    cve_id: Mapped[str] = mapped_column(
+        String(19), ForeignKey("cves.cve_id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(Integer, primary_key=True)
+    part: Mapped[str] = mapped_column(String(1), nullable=False)
+    vendor: Mapped[str] = mapped_column(String(128), nullable=False)
+    product: Mapped[str] = mapped_column(String(128), nullable=False)
+    cpe_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    cpe_update: Mapped[str] = mapped_column(String(64), nullable=False)
+    start_including: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    start_excluding: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    end_including: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    end_excluding: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conditional: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # vendor:product of the platform(s) a conditional entry needs.
+    requires: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+
+class CveSync(Base):
+    """When we asked the NVD about one exact CPE name, and what it said.
+
+    The cache key is the *CPE name sent to the NVD*, because the NVD answers per
+    name. ``found = False`` means the NVD does not know that name (HTTP 404):
+    that is "no data", never "no vulnerabilities".
+    """
+
+    __tablename__ = "cve_syncs"
+
+    cpe_name: Mapped[str] = mapped_column(String(255), primary_key=True)
+    last_success_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    found: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    cve_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"CveSync(cpe_name={self.cpe_name!r})"

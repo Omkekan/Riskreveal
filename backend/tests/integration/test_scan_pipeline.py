@@ -354,3 +354,31 @@ def test_unknown_user_cannot_create_a_scan(db: Session) -> None:
             profile_name="quick",
             settings=_settings(**PUBLIC_CFG),
         )
+
+
+def test_a_result_with_too_many_findings_is_rejected_without_saving(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The sample output has 3 open ports on its first host; lower the cap below that.
+    monkeypatch.setattr(service, "MAX_FINDINGS_PER_SCAN", 2)
+    cfg = _settings(**PUBLIC_CFG)
+    scan = _queue(db, _user(db), "8.8.8.8", cfg)
+    final = service.run_scan(
+        db, scan.id, settings=cfg, runner=_fake_runner(stdout=FIXTURE_XML.read_bytes())
+    )
+    assert final is ScanStatus.FAILED
+    failed = db.get(Scan, scan.id, populate_existing=True)
+    assert failed is not None and failed.status == "failed"
+    assert "was rejected" in (failed.error or "")
+    assert db.scalar(select(func.count()).select_from(Finding)) == 0
+    assert db.scalar(select(func.count()).select_from(Asset)) == 0
+
+
+def test_extra_info_is_stored_on_the_finding(db: Session) -> None:
+    cfg = _settings(**PUBLIC_CFG)
+    scan = _queue(db, _user(db), "8.8.8.8", cfg)
+    service.run_scan(
+        db, scan.id, settings=cfg, runner=_fake_runner(stdout=FIXTURE_XML.read_bytes())
+    )
+    extras = {f.port: f.extra_info for f in db.scalars(select(Finding)) if f.source == "nmap"}
+    assert extras[80] == "(Ubuntu)" and extras[22] == "Ubuntu Linux; protocol 2.0"

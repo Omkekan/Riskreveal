@@ -120,6 +120,15 @@ class Settings(BaseSettings):
     # Optional explicit path to the Nmap executable; default is PATH lookup.
     nmap_path: str | None = None
 
+    # --- Vulnerability matching ---------------------------------------------
+    # After a scan completes, compare detected versions with the NVD's CVE data.
+    vuln_matching_enabled: bool = True
+    # Optional. Without a key the NVD allows 5 requests per 30 s (slower, but it
+    # works); a free key raises that to 50. https://nvd.nist.gov/developers/request-an-api-key
+    nvd_api_key: SecretStr | None = None
+    # How long a CPE's CVE data is reused before it is fetched again.
+    nvd_cache_hours: int = Field(default=24, ge=1, le=720)
+
     # --- AI agents -----------------------------------------------------------
     # Optional until the agent pipeline (Phase 5) is implemented — but
     # already typed correctly as a secret so it's never accidentally logged.
@@ -201,6 +210,14 @@ class Settings(BaseSettings):
             return None
         v = v.strip()
         return v or None
+
+    @field_validator("nvd_api_key")
+    @classmethod
+    def _blank_nvd_key_to_none(cls, v: SecretStr | None) -> SecretStr | None:
+        # ``NVD_API_KEY=`` in .env means "no key", not "an empty key".
+        if v is None or not v.get_secret_value().strip():
+            return None
+        return v
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
