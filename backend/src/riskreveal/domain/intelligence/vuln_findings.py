@@ -79,6 +79,8 @@ class VersionMatchDraft:
     extra_info: str | None
     cpe: str
     raw_evidence: str
+    distro: str | None = None
+    """Distribution packaging the software, when the banner shows one."""
 
 
 def severity_rank(severity: str) -> int:
@@ -135,6 +137,7 @@ def build_draft(
         extra_info=service.extra_info,
         cpe=service.cpe_text,
         raw_evidence=f"Matched detected CPE {service.cpe_text} against NVD record {cve.cve_id}.",
+        distro=distro,
     )
 
 

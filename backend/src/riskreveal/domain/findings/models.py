@@ -85,6 +85,12 @@ class Finding(Base, TimestampMixin):
     extra_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Plain text, not a foreign key: the CVE row may not be stored locally.
     cve_id: Mapped[str | None] = mapped_column(String(19), nullable=True, index=True)
+    # Distribution that packages the software (ubuntu, debian, rhel ...) when the
+    # banner shows one. Distributions back-port security fixes without changing
+    # the version number, so upstream CVE data over-reports for them: a scorer or
+    # a UI should treat such findings as "verify first". Detected when the finding
+    # was created; NULL means "no distribution detected", NOT "verified upstream".
+    distro: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Raw tool output kept as evidence. Treat as attacker-controlled DATA:
     # banners come from the scanned host. Never render it as HTML, and never
