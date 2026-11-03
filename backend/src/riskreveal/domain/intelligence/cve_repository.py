@@ -35,7 +35,12 @@ def _chunks[T](items: Sequence[T], size: int) -> Iterator[Sequence[T]]:
 
 def upsert_records(db: Session, records: Sequence[CveRecord]) -> int:
     """Store CVEs and replace their affected-version rows. Returns the CVE count."""
-    unique = list({record.cve_id: record for record in records}.values())  # last one wins
+    by_id = {record.cve_id: record for record in records}  # a repeated CVE: the last one wins
+    # Always write in CVE-id order. Each write locks the CVE rows it touches; two
+    # tasks that lock overlapping CVEs in *different* orders (the NVD returns them
+    # in a different order for different CPEs) can deadlock, and PostgreSQL then
+    # aborts one of them. A single global order makes that impossible.
+    unique = [by_id[cve_id] for cve_id in sorted(by_id)]
     for batch in _chunks(unique, CVE_BATCH_SIZE):
         _write_cves(db, batch)
         _replace_ranges(db, batch)
