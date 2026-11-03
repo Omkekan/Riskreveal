@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from riskreveal.domain.intelligence.cpe import Cpe, parse_cpe
+from riskreveal.domain.intelligence.host_platform import HostPlatform
 from riskreveal.domain.intelligence.matcher import CveMatch, match_cves
 from riskreveal.domain.intelligence.records import CpeRange, CveRecord
 from riskreveal.domain.intelligence.sources.nvd import parse_nvd_response
@@ -200,3 +201,69 @@ def test_an_unconditional_range_wins_over_a_conditional_one_of_the_same_strength
     plain = CpeRange("a", "v", "p", version="1.0")
     (match,) = match_cves(Cpe("a", "v", "p", "1.0", "*"), [_record_with(conditional, plain)])
     assert (match.conditional, match.requires, match.needs_review) == (False, (), False)
+
+
+# --- an entry for "8.2" with update "*" covers Nmap's single-string "8.2p1" ---------
+# (found by the real-data precision check: CVE-2020-12062 for OpenSSH 8.2p1 was missed)
+
+
+@pytest.mark.parametrize(
+    ("update", "subject_version", "affected"),
+    [
+        ("*", "8.2", True),
+        ("*", "8.2p1", True),
+        ("*", "8.2p12", True),
+        ("*", "8.2rc1", True),
+        ("*", "8.2beta", True),
+        ("*", "8.2.1", False),  # a different version
+        ("*", "8.20", False),
+        ("*", "8.2a", False),  # a letter suffix is part of the version, not an update
+        ("*", "8.3p1", False),
+        ("*", "7.2p1", False),
+        ("-", "8.2p1", False),  # "-" means "no update at all"
+        ("-", "8.2", True),
+        ("p1", "8.2p1", True),  # NVD's own split form
+        ("p1", "8.2p2", False),
+        ("p1", "8.2", False),
+    ],
+)
+def test_exact_entry_with_an_update_field(
+    update: str, subject_version: str, affected: bool
+) -> None:
+    record = _record_with(CpeRange("a", "v", "p", version="8.2", update=update))
+    assert bool(match_cves(Cpe("a", "v", "p", subject_version, "*"), [record])) is affected
+
+
+# --- platform filter ---------------------------------------------------------------
+
+_WINDOWS_ONLY = CpeRange(
+    "a", "v", "p", end_excluding="2.0", conditional=True, requires=("microsoft:windows",)
+)
+_PLAIN = CpeRange("a", "v", "p", end_excluding="2.0")
+
+
+def _ids(host: HostPlatform | None, *ranges: CpeRange) -> list[str]:
+    result = match_cves(Cpe("a", "v", "p", "1.0", "*"), [_record_with(*ranges)], host=host)
+    return [m.cve_id for m in result]
+
+
+def test_a_windows_only_cve_is_dropped_for_a_linux_host() -> None:
+    assert _ids(HostPlatform("linux", "ubuntu"), _WINDOWS_ONLY) == []
+
+
+def test_a_windows_only_cve_is_kept_when_the_host_is_unknown_or_windows() -> None:
+    assert _ids(None, _WINDOWS_ONLY) == ["CVE-2099-0900"]
+    assert _ids(HostPlatform("windows"), _WINDOWS_ONLY) == ["CVE-2099-0900"]
+
+
+def test_the_filter_never_touches_unconditional_matches() -> None:
+    assert _ids(HostPlatform("linux", "ubuntu"), _PLAIN) == ["CVE-2099-0900"]
+
+
+def test_one_surviving_range_keeps_the_cve() -> None:
+    assert _ids(HostPlatform("linux"), _WINDOWS_ONLY, _PLAIN) == ["CVE-2099-0900"]
+
+
+def test_a_conditional_range_without_known_platforms_is_never_filtered() -> None:
+    no_platform = CpeRange("a", "v", "p", end_excluding="2.0", conditional=True)
+    assert _ids(HostPlatform("linux", "ubuntu"), no_platform) == ["CVE-2099-0900"]

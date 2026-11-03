@@ -52,6 +52,9 @@ logger = logging.getLogger("riskreveal.engines.nmap")
 
 MAX_SCRIPT_OUTPUT_CHARS = 10_000
 MAX_STDERR_CHARS = 500
+# Upper bound on Nmap's XML. A /24 where every host fakes open ports can produce a
+# huge document; refuse it instead of parsing it into memory.
+MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 
 # Injectable so tests can fake the subprocess; defaults to subprocess.run.
 Runner = Callable[..., Any]
@@ -95,6 +98,7 @@ def run_nmap(
     *,
     nmap_path: str | None = None,
     runner: Runner = subprocess.run,
+    max_output_bytes: int = MAX_OUTPUT_BYTES,
 ) -> ScanResult:
     """Run Nmap against an already-validated target and parse the result."""
     executable = find_nmap(nmap_path)
@@ -123,6 +127,8 @@ def run_nmap(
         raise EngineError(
             f"Nmap exited with status {completed.returncode}: {stderr[-MAX_STDERR_CHARS:]}"
         )
+    if len(completed.stdout) > max_output_bytes:
+        raise EngineError("Nmap produced more output than the allowed maximum.")
     return parse_nmap_xml(completed.stdout)
 
 

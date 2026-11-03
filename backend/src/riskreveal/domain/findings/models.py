@@ -1,13 +1,16 @@
 """The Finding model: one thing a scan found on one asset.
 
-For now every finding comes from Nmap and is informational ("port 22/tcp is
-open, running OpenSSH 6.6.1"). Vulnerability findings (CVE matches, Nuclei,
-NSE vuln scripts) arrive with the intelligence pipeline and reuse this table.
+Nmap findings are informational ("port 22/tcp is open, running OpenSSH
+6.6.1"). ``version_match`` findings are derived from them: "OpenSSH 6.6.1p1
+lists CVE-... as vulnerable", always ``inferred``.
 
-Deliberately NOT here yet, to keep the migration small: cross-scan
-de-duplication (``first_seen``/``last_seen``), ``cve_id``, CVSS / EPSS / KEV,
-``risk_score``, ``verification``. Adding columns later is an additive
-migration.
+Only ``cve_id`` is stored for a CVE. CVSS, KEV and EPSS are looked up when a
+finding is *read*, because KEV/EPSS change daily and a stored copy goes stale.
+``extra_info`` is Nmap's free text next to the version (``(Ubuntu)``,
+``(Win32)``): it is what tells the matcher which platform the host runs.
+
+Deliberately NOT here yet: cross-scan de-duplication
+(``first_seen``/``last_seen``), ``risk_score``, ``verification``.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from riskreveal.db.base import Base, TimestampMixin
 from riskreveal.domain.findings.enums import Confidence, FindingSource, FindingStatus, Severity
+from riskreveal.domain.intelligence.cve_id import CVE_ID_SQL_REGEX
 
 
 def _in_list(column: str, enum_cls: type[StrEnum]) -> str:
@@ -36,6 +40,7 @@ class Finding(Base, TimestampMixin):
         CheckConstraint(_in_list("confidence", Confidence), name="confidence_valid"),
         CheckConstraint(_in_list("status", FindingStatus), name="status_valid"),
         CheckConstraint(_in_list("source", FindingSource), name="source_valid"),
+        CheckConstraint(f"cve_id IS NULL OR cve_id ~ '{CVE_ID_SQL_REGEX}'", name="cve_id_format"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -76,6 +81,10 @@ class Finding(Base, TimestampMixin):
     product: Mapped[str | None] = mapped_column(String(128), nullable=True)
     version: Mapped[str | None] = mapped_column(String(128), nullable=True)
     cpe: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Nmap's text beside the version, e.g. "(Ubuntu)". Untrusted: host-controlled.
+    extra_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Plain text, not a foreign key: the CVE row may not be stored locally.
+    cve_id: Mapped[str | None] = mapped_column(String(19), nullable=True, index=True)
 
     # Raw tool output kept as evidence. Treat as attacker-controlled DATA:
     # banners come from the scanned host. Never render it as HTML, and never

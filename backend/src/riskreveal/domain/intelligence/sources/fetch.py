@@ -8,6 +8,7 @@ time limit, and must stay on HTTPS across redirects.
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 
 import httpx
 
@@ -24,12 +25,14 @@ def download(
     *,
     max_bytes: int,
     max_seconds: float = DEFAULT_MAX_SECONDS,
+    headers: Mapping[str, str] | None = None,
     transport: httpx.BaseTransport | None = None,
 ) -> bytes:
     """GET ``url`` and return the body, refusing anything over ``max_bytes``.
 
-    ``transport`` exists only so tests can supply a fake network; production
-    code leaves it ``None``.
+    ``headers`` are extra request headers (an API key, for example); they never
+    appear in an error message. ``transport`` exists only so tests can supply a
+    fake network; production code leaves it ``None``.
     """
     if not url.startswith("https://"):
         raise FeedFetchError("Feeds must be downloaded over HTTPS.")
@@ -43,7 +46,7 @@ def download(
                 timeout=_TIMEOUT,
                 follow_redirects=True,
                 max_redirects=_MAX_REDIRECTS,
-                headers={"User-Agent": _USER_AGENT},
+                headers={"User-Agent": _USER_AGENT, **(headers or {})},
                 transport=transport,
             ) as client,
             client.stream("GET", url) as response,
@@ -51,7 +54,10 @@ def download(
             if response.url.scheme != "https":
                 raise FeedFetchError("The feed server redirected to a non-HTTPS address.")
             if response.status_code != 200:
-                raise FeedFetchError(f"The feed server answered HTTP {response.status_code}.")
+                raise FeedFetchError(
+                    f"The feed server answered HTTP {response.status_code}.",
+                    status_code=response.status_code,
+                )
             for chunk in response.iter_bytes():
                 total += len(chunk)
                 if total > max_bytes:

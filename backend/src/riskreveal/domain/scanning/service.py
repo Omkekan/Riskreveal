@@ -75,6 +75,12 @@ _MAX_SERVICE = 64
 _MAX_PRODUCT = 128
 _MAX_VERSION = 128
 _MAX_CPE = 255
+_MAX_EXTRA_INFO = 255
+
+# A scan that reports more findings than this is rejected rather than stored: a
+# host that fakes "every port open" (or a hostile /24) must not flood the
+# database. Narrow the target instead.
+MAX_FINDINGS_PER_SCAN = 5000
 
 # A running scan older than (longest profile timeout x 2) is certainly stuck.
 STALE_RUNNING_AFTER = timedelta(seconds=2 * max(p.timeout_seconds for p in PROFILES.values()))
@@ -88,6 +94,10 @@ class ScanRejectedError(Exception):
 
 class TooManyActiveScansError(ScanRejectedError):
     """The user already has the maximum number of queued/running scans."""
+
+
+class ScanResultTooLargeError(Exception):
+    """The scan reported more findings than ``MAX_FINDINGS_PER_SCAN``."""
 
 
 class ScanNotCancellableError(Exception):
@@ -225,6 +235,14 @@ def run_scan(
         return ScanStatus.CANCELLED
     except (ScopeError, UnknownProfileError) as exc:
         return _fail(db, scan_id, str(exc))  # both messages are written to be user-safe
+    except ScanResultTooLargeError:
+        logger.warning("scan %s rejected: more than %d findings", scan_id, MAX_FINDINGS_PER_SCAN)
+        return _fail(
+            db,
+            scan_id,
+            f"The scan reported more than {MAX_FINDINGS_PER_SCAN} open ports and was rejected. "
+            "Scan a smaller range or a single host.",
+        )
     except EngineError as exc:
         # The raw message can contain Nmap's stderr: log it, never store it.
         logger.warning("scan %s engine failure: %s", scan_id, exc)
@@ -299,6 +317,12 @@ def _persist_result(
 
     Returns False (and writes nothing) if the scan was cancelled meanwhile.
     """
+    # Work out everything to store BEFORE touching the database, so an oversized
+    # result is refused without any write.
+    planned = [(host, normalize_host(host)) for host in result.hosts if host.status == "up"]
+    if sum(len(drafts) for _host, drafts in planned) > MAX_FINDINGS_PER_SCAN:
+        raise ScanResultTooLargeError
+
     # The conditional UPDATE also takes the row lock, so a concurrent cancel
     # either lands before this (we discard) or waits until we commit.
     if not scan_repository.transition(
@@ -307,9 +331,7 @@ def _persist_result(
         db.rollback()
         return False
 
-    for host in result.hosts:
-        if host.status != "up":
-            continue
+    for host, drafts in planned:
         asset_id = asset_repository.upsert(
             db,
             owner_id=owner_id,
@@ -317,9 +339,7 @@ def _persist_result(
             hostname=_hostname_for(host, target),
             os_name=_clip_opt(host.os_name, _MAX_OS_NAME),
         )
-        db.add_all(
-            [_finding_from_draft(scan_id, asset_id, draft) for draft in normalize_host(host)]
-        )
+        db.add_all([_finding_from_draft(scan_id, asset_id, draft) for draft in drafts])
     db.commit()
     return True
 
@@ -346,6 +366,7 @@ def _finding_from_draft(scan_id: uuid.UUID, asset_id: uuid.UUID, draft: FindingD
         product=_clip_opt(draft.product, _MAX_PRODUCT),
         version=_clip_opt(draft.version, _MAX_VERSION),
         cpe=_clip_opt(draft.cpe, _MAX_CPE),
+        extra_info=_clip_opt(draft.extra_info, _MAX_EXTRA_INFO),
         raw_evidence=None if draft.raw_evidence is None else _clean(draft.raw_evidence),
     )
 

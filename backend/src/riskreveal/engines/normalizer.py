@@ -40,6 +40,7 @@ class FindingDraft:
     version: str | None
     cpe: str | None
     raw_evidence: str | None
+    extra_info: str | None = None
 
 
 def normalize_host(host: ParsedHost) -> list[FindingDraft]:
@@ -71,6 +72,7 @@ def _port_to_draft(address: str, port: ParsedPort) -> FindingDraft:
         version=port.version,
         cpe=port.cpes[0] if port.cpes else None,
         raw_evidence=_evidence(port),
+        extra_info=port.extrainfo,
     )
 
 

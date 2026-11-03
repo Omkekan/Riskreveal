@@ -21,6 +21,10 @@ What it does:
    rows there are expected. This checks that we do not raise FALSE ALARMS.
 5. With --kev it also marks CVEs in CISA's Known Exploited list.
 6. With --show-review it prints a short description for every REVIEW row.
+7. With --host-hint TEXT (repeatable; use what Nmap reports, e.g. "(Ubuntu)" or
+   "(Win32)") it works out the host's platform and DROPS platform-specific CVEs
+   that cannot apply there, listing them as "filtered". Unknown hosts and
+   unrecognised platforms drop nothing.
 
 Costs one NVD request per CPE (two with --compare-with) and one 1 MB KEV
 download with --kev. No API key is needed; if you have one, set NVD_API_KEY in
@@ -43,6 +47,7 @@ import httpx
 
 from riskreveal.domain.intelligence.cpe import Cpe, full_version, parse_cpe
 from riskreveal.domain.intelligence.errors import FeedError
+from riskreveal.domain.intelligence.host_platform import detect_host_platform
 from riskreveal.domain.intelligence.matcher import CveMatch, match_cves
 from riskreveal.domain.intelligence.records import CveRecord
 from riskreveal.domain.intelligence.sources.cisa_kev import KEV_MAX_BYTES, KEV_URL, parse_kev
@@ -151,6 +156,12 @@ def main() -> int:
     parser.add_argument("--results", type=int, default=500, help="most CVEs to request (1-2000)")
     parser.add_argument("--kev", action="store_true", help="mark CVEs in CISA's KEV list")
     parser.add_argument("--show-review", action="store_true", help="describe REVIEW rows")
+    parser.add_argument(
+        "--host-hint",
+        action="append",
+        default=[],
+        help='what Nmap says about the host, e.g. "(Ubuntu)" (repeatable)',
+    )
     args = parser.parse_args()
 
     subject = _require_version_cpe(args.cpe)
@@ -177,7 +188,13 @@ def main() -> int:
         except FeedError as exc:
             print(f"Could not get or read the KEV list: {type(exc).__name__}: {exc}")
 
-    local = {m.cve_id: m for m in match_cves(subject, page.records)}
+    host = detect_host_platform(*args.host_hint) if args.host_hint else None
+    if args.host_hint:
+        distro = host.distro or "unknown distribution" if host else ""
+        known = f"{host.family}/{distro}" if host else "not recognised"
+        print(f"Host platform from the hints: {known}.")
+    everything = {m.cve_id: m for m in match_cves(subject, page.records)}
+    local = {m.cve_id: m for m in match_cves(subject, page.records, host=host)}
     print(
         f"NVD returned {len(page.records)} CVEs "
         f"(NVD total: {page.total_results}; skipped while parsing: {page.skipped})."
@@ -192,13 +209,21 @@ def main() -> int:
         score = f"{record.cvss_score:.1f}" if record.cvss_score is not None else "-"
         severity = record.cvss_severity or "-"
         in_kev = "yes" if cve_id in kev_ids else "-"
-        print(f"{cve_id:<17} {score:>5}  {severity:<9} {in_kev:<4} {_verdict(local.get(cve_id))}")
+        if cve_id in local or cve_id not in everything:
+            verdict = _verdict(local.get(cve_id))
+        else:
+            verdict = f"filtered: needs {', '.join(everything[cve_id].requires)}"
+        print(f"{cve_id:<17} {score:>5}  {severity:<9} {in_kev:<4} {verdict}")
 
-    missed = [cve_id for cve_id in records if cve_id not in local]
+    missed = [cve_id for cve_id in records if cve_id not in everything]
+    filtered = [cve_id for cve_id in everything if cve_id not in local]
     review = [m for m in local.values() if m.needs_review]
     print()
-    print(f"Agreement: we match {len(local)} of the NVD's {len(records)} (missed: {len(missed)}).")
-    print(f"Strong matches: {len(local) - len(review)}.  Needing review: {len(review)}.")
+    print(
+        f"Agreement: we match {len(everything)} of the NVD's {len(records)} "
+        f"(missed: {len(missed)}; dropped by the platform filter: {len(filtered)})."
+    )
+    print(f"Reportable strong matches: {len(local) - len(review)}.  Needing review: {len(review)}.")
     if missed:
         print("Please send back the NOT MATCHED lines (and the command you ran).")
 

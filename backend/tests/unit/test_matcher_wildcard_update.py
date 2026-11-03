@@ -194,3 +194,16 @@ def test_all_versions_and_conditional_entries_are_unchanged() -> None:
     assert cpe is not None
     (match,) = match_cves(cpe, [conditional])
     assert match.conditional and match.needs_review
+
+
+# --- pre-release updates are NOT rounded up to the release -----------------
+
+
+@pytest.mark.parametrize(
+    ("version", "inside"),
+    [("2.4.6", True), ("2.4.7rc1", True), ("2.4.7beta2", True), ("2.4.7", False)],
+)
+def test_a_pre_release_is_older_than_the_plain_bound(version: str, inside: bool) -> None:
+    """2.4.7rc1 comes BEFORE 2.4.7, so ``end_excluding 2.4.7`` must still include it."""
+    record = _record(end_excluding="2.4.7")
+    assert (_reason(record, version) == "version_range") is inside

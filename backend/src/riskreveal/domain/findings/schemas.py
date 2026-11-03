@@ -8,9 +8,29 @@ must display it as plain text, never as HTML.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
+
+
+class VulnerabilityContext(BaseModel):
+    """What is known about a finding's CVE *right now*.
+
+    Looked up when the finding is read, not stored on it. ``None`` means
+    unknown, which is not zero: a CVE with no EPSS score has ``epss = None``.
+    """
+
+    cve_id: str
+    cvss_score: float | None = None
+    cvss_severity: str | None = None
+    cvss_vector: str | None = None
+    published_at: datetime | None = None
+    in_kev: bool = False
+    kev_date_added: date | None = None
+    kev_ransomware_use: bool = False
+    epss: float | None = None
+    epss_percentile: float | None = None
+    epss_date: date | None = None
 
 
 class FindingRead(BaseModel):
@@ -31,6 +51,9 @@ class FindingRead(BaseModel):
     product: str | None
     version: str | None
     cpe: str | None
+    extra_info: str | None
+    cve_id: str | None
+    vulnerability: VulnerabilityContext | None = None
     created_at: datetime
     updated_at: datetime
 

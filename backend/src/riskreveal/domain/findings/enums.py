@@ -36,4 +36,7 @@ class FindingStatus(StrEnum):
 
 class FindingSource(StrEnum):
     NMAP = "nmap"
-    # Later: NMAP_NSE, NUCLEI, VERSION_MATCH, AUTHENTICATED_PKG, AGENT_FOLLOWUP.
+    # A detected product+version found in a CVE's vulnerable range. Always
+    # ``confidence="inferred"``: an advertised version is not proof.
+    VERSION_MATCH = "version_match"
+    # Later: NMAP_NSE, NUCLEI, AUTHENTICATED_PKG, AGENT_FOLLOWUP.
