@@ -30,7 +30,7 @@ def create_celery_app() -> Celery:
     app = Celery(
         "riskreveal",
         broker=settings.redis_url,
-        include=["riskreveal.tasks.scan_tasks"],
+        include=["riskreveal.tasks.scan_tasks", "riskreveal.tasks.feed_tasks"],
     )
     app.conf.update(
         task_serializer="json",

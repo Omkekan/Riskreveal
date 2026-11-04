@@ -128,6 +128,10 @@ class Settings(BaseSettings):
     nvd_api_key: SecretStr | None = None
     # How long a CPE's CVE data is reused before it is fetched again.
     nvd_cache_hours: int = Field(default=24, ge=1, le=720)
+    # Daily scheduled KEV/EPSS refresh (tasks/feed_tasks.py, tasks/beat_schedule.py).
+    # Only gates the scheduled tasks; `cli load-kev`/`load-epss` always work.
+    # Turn off for an air-gapped deployment with no outbound network.
+    feed_sync_enabled: bool = True
 
     # --- AI agents -----------------------------------------------------------
     # Optional until the agent pipeline (Phase 5) is implemented — but
