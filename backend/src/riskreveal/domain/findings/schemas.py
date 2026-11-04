@@ -52,6 +52,7 @@ class FindingRead(BaseModel):
     version: str | None
     cpe: str | None
     extra_info: str | None
+    distro: str | None = None
     cve_id: str | None
     vulnerability: VulnerabilityContext | None = None
     created_at: datetime

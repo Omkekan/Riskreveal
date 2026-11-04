@@ -14,7 +14,7 @@ from riskreveal.db.session import get_db
 from riskreveal.dependencies import CurrentUser
 from riskreveal.domain.findings import repository
 from riskreveal.domain.findings.enrichment import attach_context
-from riskreveal.domain.findings.enums import Severity
+from riskreveal.domain.findings.enums import FindingSource, Severity
 from riskreveal.domain.findings.schemas import FindingDetail, FindingPage, FindingRead
 
 router = APIRouter(prefix="/findings", tags=["findings"])
@@ -30,6 +30,17 @@ def list_findings(
     scan_id: Annotated[uuid.UUID | None, Query()] = None,
     asset_id: Annotated[uuid.UUID | None, Query()] = None,
     severity: Annotated[Severity | None, Query()] = None,
+    source: Annotated[FindingSource | None, Query()] = None,
+    kev: Annotated[
+        bool | None, Query(description="Only (true) or never (false) KEV-listed.")
+    ] = None,
+    cve_id: Annotated[
+        str | None, Query(pattern=r"^CVE-[0-9]{4}-[0-9]{4,10}$", max_length=19)
+    ] = None,
+    distro_packaged: Annotated[
+        bool | None,
+        Query(description="True: banner shows a distribution package (back-ports likely)."),
+    ] = None,
 ) -> FindingPage:
     findings, total = repository.list_for_owner(
         db,
@@ -37,6 +48,10 @@ def list_findings(
         scan_id=scan_id,
         asset_id=asset_id,
         severity=severity.value if severity is not None else None,
+        source=source.value if source is not None else None,
+        kev=kev,
+        cve_id=cve_id,
+        distro_packaged=distro_packaged,
         limit=page.limit,
         offset=page.offset,
     )

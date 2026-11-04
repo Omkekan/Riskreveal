@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from riskreveal.domain.findings.models import Finding
+from riskreveal.domain.intelligence.models import KevEntry
 from riskreveal.domain.scanning.models import Scan
 
 
@@ -32,6 +33,10 @@ def list_for_owner(
     scan_id: uuid.UUID | None,
     asset_id: uuid.UUID | None,
     severity: str | None,
+    source: str | None = None,
+    kev: bool | None = None,
+    cve_id: str | None = None,
+    distro_packaged: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Finding], int]:
@@ -42,6 +47,17 @@ def list_for_owner(
         base = base.where(Finding.asset_id == asset_id)
     if severity is not None:
         base = base.where(Finding.severity == severity)
+    if source is not None:
+        base = base.where(Finding.source == source)
+    if cve_id is not None:
+        base = base.where(Finding.cve_id == cve_id)
+    if kev is not None:
+        # KEV status is read live from the catalog (it is not stored on findings).
+        listed = select(KevEntry.cve_id).where(KevEntry.cve_id == Finding.cve_id).exists()
+        base = base.where(listed if kev else ~listed)
+    if distro_packaged is not None:
+        packaged = Finding.distro.is_not(None)
+        base = base.where(packaged if distro_packaged else ~packaged)
 
     total = db.scalar(select(func.count()).select_from(base.subquery()))
     rows = db.scalars(

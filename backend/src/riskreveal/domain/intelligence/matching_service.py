@@ -254,6 +254,7 @@ def _replace_findings(db: Session, scan_id: uuid.UUID, drafts: list[VersionMatch
                     product=d.product,
                     version=d.version,
                     extra_info=d.extra_info,
+                    distro=d.distro,
                     cpe=d.cpe,
                     cve_id=d.cve_id,
                     raw_evidence=d.raw_evidence,

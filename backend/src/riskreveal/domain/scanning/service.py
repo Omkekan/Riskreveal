@@ -76,6 +76,7 @@ _MAX_PRODUCT = 128
 _MAX_VERSION = 128
 _MAX_CPE = 255
 _MAX_EXTRA_INFO = 255
+_MAX_DISTRO = 32
 
 # A scan that reports more findings than this is rejected rather than stored: a
 # host that fakes "every port open" (or a hostile /24) must not flood the
@@ -367,6 +368,7 @@ def _finding_from_draft(scan_id: uuid.UUID, asset_id: uuid.UUID, draft: FindingD
         version=_clip_opt(draft.version, _MAX_VERSION),
         cpe=_clip_opt(draft.cpe, _MAX_CPE),
         extra_info=_clip_opt(draft.extra_info, _MAX_EXTRA_INFO),
+        distro=_clip_opt(draft.distro, _MAX_DISTRO),
         raw_evidence=None if draft.raw_evidence is None else _clean(draft.raw_evidence),
     )
 

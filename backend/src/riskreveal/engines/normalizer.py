@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from riskreveal.domain.findings.enums import Confidence, Severity
+from riskreveal.domain.intelligence.distro import detect_distro
 from riskreveal.engines.base import ParsedHost, ParsedPort
 
 MAX_EVIDENCE_CHARS = 20_000
@@ -41,6 +42,8 @@ class FindingDraft:
     cpe: str | None
     raw_evidence: str | None
     extra_info: str | None = None
+    distro: str | None = None
+    """Distribution that packages the software (ubuntu, rhel ...), read from the banner."""
 
 
 def normalize_host(host: ParsedHost) -> list[FindingDraft]:
@@ -73,6 +76,7 @@ def _port_to_draft(address: str, port: ParsedPort) -> FindingDraft:
         cpe=port.cpes[0] if port.cpes else None,
         raw_evidence=_evidence(port),
         extra_info=port.extrainfo,
+        distro=detect_distro(port.product, port.version, port.extrainfo),
     )
 
 
