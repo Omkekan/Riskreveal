@@ -93,6 +93,12 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
+    # --- Accounts --------------------------------------------------------------
+    # Set to false once the accounts you need exist. Until per-user
+    # target-ownership verification is built, every account can scan any
+    # target the scan policy allows — see domain/scanning/authorization.py.
+    registration_enabled: bool = True
+
     # --- CORS ----------------------------------------------------------------
     # NoDecode: by default pydantic-settings tries to JSON-decode any
     # list-typed field read from an environment variable, which would reject
@@ -128,10 +134,11 @@ class Settings(BaseSettings):
     nvd_api_key: SecretStr | None = None
     # How long a CPE's CVE data is reused before it is fetched again.
     nvd_cache_hours: int = Field(default=24, ge=1, le=720)
-    # Daily scheduled KEV/EPSS refresh (tasks/feed_tasks.py, tasks/beat_schedule.py).
-    # Only gates the scheduled tasks; `cli load-kev`/`load-epss` always work.
-    # Turn off for an air-gapped deployment with no outbound network.
-    feed_sync_enabled: bool = True
+    # Keep the CISA KEV and FIRST EPSS feeds fresh from the worker (at worker
+    # start and, if the scheduler is running, every few hours). Set false to
+    # stop all automatic feed downloads; `riskreveal.cli refresh-feeds` still
+    # works by hand either way.
+    feed_refresh_enabled: bool = True
 
     # --- AI agents -----------------------------------------------------------
     # Optional until the agent pipeline (Phase 5) is implemented — but
@@ -230,6 +237,11 @@ class Settings(BaseSettings):
                 raise ValueError("DEBUG must be false when ENVIRONMENT=production.")
             if "*" in self.cors_origins:
                 raise ValueError("CORS_ORIGINS must not contain '*' when ENVIRONMENT=production.")
+            if "CHANGE_ME" in self.database_url.upper():
+                raise ValueError(
+                    "DATABASE_URL still contains the CHANGE_ME placeholder; "
+                    "set a real database password when ENVIRONMENT=production."
+                )
         return self
 
     # ------------------------------------------------------------------

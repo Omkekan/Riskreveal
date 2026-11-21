@@ -1,5 +1,1 @@
-"""Lets ``python -m riskreveal.cli`` start the command-line tools."""
-
-from riskreveal.cli.commands import app
-
-app(prog_name="riskreveal")
+"""Command-line tools. Start them with ``python -m riskreveal.cli`` (see ``__main__.py``)."""

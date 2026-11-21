@@ -229,8 +229,19 @@ def _load_candidates(db: Session, scan_id: uuid.UUID) -> tuple[list[_Candidate],
 
 
 def _replace_findings(db: Session, scan_id: uuid.UUID, drafts: list[VersionMatchDraft]) -> None:
-    """Swap the scan's version_match findings for ``drafts`` in one transaction."""
+    """Swap the scan's version_match findings for ``drafts`` in one transaction.
+
+    The scan row is locked first. Without that, two matchers for the same scan
+    (the worker task and a manual ``match-scan``) could both run their DELETE
+    before either committed its INSERTs, and each would leave its own copy of
+    every finding behind. With the lock the second one waits, then deletes the
+    first one's rows and writes its own.
+    """
     try:
+        locked = db.execute(select(Scan.id).where(Scan.id == scan_id).with_for_update()).first()
+        if locked is None:  # the scan was deleted while we were working
+            db.rollback()
+            return
         db.execute(
             delete(Finding).where(
                 Finding.scan_id == scan_id,

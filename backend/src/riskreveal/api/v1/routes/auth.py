@@ -15,6 +15,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from riskreveal.config import get_settings
 from riskreveal.core.rate_limit import auth_limit, limiter
 from riskreveal.db.session import get_db
 from riskreveal.dependencies import CurrentUser
@@ -35,6 +36,11 @@ DbSession = Annotated[Session, Depends(get_db)]
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 @limiter.limit(auth_limit)
 def register(request: Request, payload: UserCreate, db: DbSession) -> UserRead:
+    if not get_settings().registration_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is disabled on this server.",
+        )
     try:
         user = service.register_user(
             db,

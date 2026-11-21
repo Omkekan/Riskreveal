@@ -144,6 +144,15 @@ def list_syncs(db: Session) -> list[FeedSync]:
     return list(db.scalars(select(FeedSync).order_by(FeedSync.source)).all())
 
 
+def get_sync(db: Session, source: str) -> FeedSync | None:
+    return db.get(FeedSync, source)
+
+
+def latest_epss_date(db: Session) -> date | None:
+    """The newest ``score_date`` stored, or ``None`` when no EPSS data exists."""
+    return db.scalar(select(func.max(EpssScore.score_date)))
+
+
 def get_threat_signals(db: Session, cve_ids: Collection[str]) -> dict[str, ThreatSignal]:
     """Look up KEV / EPSS data for the given CVE ids.
 
