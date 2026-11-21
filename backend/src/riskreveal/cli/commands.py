@@ -22,7 +22,7 @@ real annotations at runtime.
 """
 
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -31,7 +31,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from riskreveal.config import get_settings
 from riskreveal.db.session import get_sessionmaker
-from riskreveal.domain.intelligence import cve_service, matching_service, repository, service
+from riskreveal.domain.intelligence import (
+    cve_service,
+    feed_refresh,
+    matching_service,
+    repository,
+    service,
+)
 from riskreveal.domain.intelligence.cpe import full_version, parse_cpe
 from riskreveal.domain.intelligence.errors import FeedError
 from riskreveal.domain.intelligence.sources import fetch, payload
@@ -123,11 +129,39 @@ def feed_status() -> None:
     if not syncs:
         typer.echo("No feeds have been imported yet.")
         return
+    now = datetime.now(UTC)
     for sync in syncs:
+        age = feed_refresh.describe_age(sync.last_success_at, now)
+        stale = feed_refresh.is_stale(sync.source, sync.last_success_at, now)
         typer.echo(
-            f"{sync.source:<12} last success {sync.last_success_at.isoformat()}  "
+            f"{sync.source:<12} last success {sync.last_success_at.isoformat()} ({age})  "
             f"version {sync.version or '-'}  records {sync.record_count}"
+            + ("  STALE: run 'refresh-feeds'" if stale else "")
         )
+
+
+@app.command("refresh-feeds")
+def refresh_feeds(
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Download and import even if the data is recent."),
+    ] = False,
+) -> None:
+    """Refresh the KEV and EPSS feeds if they are stale (what the scheduled task does)."""
+    try:
+        with get_sessionmaker()() as db:
+            outcomes = [
+                ("KEV", feed_refresh.refresh_kev(db, force=force)),
+                ("EPSS", feed_refresh.refresh_epss(db, force=force)),
+            ]
+    except SQLAlchemyError as exc:
+        raise _db_error(exc) from exc
+    failed = False
+    for label, outcome in outcomes:
+        typer.echo(f"{label}: {outcome.status.value} - {outcome.detail}")
+        failed = failed or outcome.status is feed_refresh.RefreshStatus.FAILED
+    if failed:
+        raise typer.Exit(code=1)
 
 
 def _nvd_client() -> NvdClient:
@@ -152,12 +186,18 @@ def sync_cves(
         raise _fail(str(exc)) from exc
     except SQLAlchemyError as exc:
         raise _db_error(exc) from exc
+    if status is cve_service.DataStatus.NO_NAME:
+        # Parsed and had a version, but there's nothing to ask the NVD: a real
+        # failure to do what the command was asked, not just "no data found".
+        raise _fail(
+            "that CPE cannot be turned into an NVD name (it must be an application or "
+            "operating-system CPE with a version and ordinary characters)"
+        )
     messages = {
         cve_service.DataStatus.FETCHED: "Stored the NVD's CVEs for that CPE.",
         cve_service.DataStatus.UNKNOWN_CPE: (
             "The NVD does not know that CPE name. That means NO DATA, not 'no vulnerabilities'."
         ),
-        cve_service.DataStatus.NO_NAME: "That CPE cannot be turned into an NVD name.",
     }
     typer.echo(messages.get(status, f"Result: {status.value}."))
 
