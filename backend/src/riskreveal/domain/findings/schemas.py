@@ -33,6 +33,20 @@ class VulnerabilityContext(BaseModel):
     epss_date: date | None = None
 
 
+class RiskScoreRead(BaseModel):
+    """A finding's prioritized risk score (see ``risk_scorer.py``), carried
+    over the API with its own explanation attached -- "why is this a 72?"
+    should be answerable from the response alone, not just the number.
+    """
+
+    value: int
+    band: str
+    severity_component: float
+    threat_component: float
+    asset_criticality: float
+    reasons: tuple[str, ...]
+
+
 class FindingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,6 +69,7 @@ class FindingRead(BaseModel):
     distro: str | None = None
     cve_id: str | None
     vulnerability: VulnerabilityContext | None = None
+    risk_score: RiskScoreRead | None = None
     created_at: datetime
     updated_at: datetime
 

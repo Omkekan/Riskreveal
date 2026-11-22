@@ -6,7 +6,8 @@ from collections.abc import Collection, Iterable
 
 from sqlalchemy.orm import Session
 
-from riskreveal.domain.findings.schemas import FindingRead, VulnerabilityContext
+from riskreveal.domain.findings.risk_scorer import score as score_risk
+from riskreveal.domain.findings.schemas import FindingRead, RiskScoreRead, VulnerabilityContext
 from riskreveal.domain.intelligence import cve_repository, repository
 
 
@@ -39,10 +40,29 @@ def vulnerability_contexts(
 
 
 def attach_context[T: FindingRead](db: Session, items: Iterable[T]) -> list[T]:
-    """Fill ``vulnerability`` on every item that has a ``cve_id``."""
+    """Fill ``vulnerability`` and ``risk_score`` on every item with a ``cve_id``.
+
+    Asset criticality isn't modeled yet (``Asset`` has no such field), so
+    every finding here gets the scorer's neutral default (1.0) -- a future
+    pass through this function supplies the asset's real criticality once
+    that field exists, rather than this module guessing at one.
+    """
     listed = list(items)
     contexts = vulnerability_contexts(db, {i.cve_id for i in listed if i.cve_id})
     for item in listed:
-        if item.cve_id:
-            item.vulnerability = contexts.get(item.cve_id)
+        if not item.cve_id:
+            continue
+        context = contexts.get(item.cve_id)
+        item.vulnerability = context
+        if context is not None:
+            risk = score_risk(context)
+            if risk is not None:
+                item.risk_score = RiskScoreRead(
+                    value=risk.value,
+                    band=risk.band.value,
+                    severity_component=risk.severity_component,
+                    threat_component=risk.threat_component,
+                    asset_criticality=risk.asset_criticality,
+                    reasons=risk.reasons,
+                )
     return listed
